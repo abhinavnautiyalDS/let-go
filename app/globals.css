@@ -1,26 +1,1761 @@
-@import "tailwindcss";
+/* =========================================================
+   GLOBAL DESIGN TOKENS
+========================================================= */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-bg: #0d0a07;
+  --color-text-primary: #f5ede4;
+  --color-text-secondary: rgba(245, 237, 228, 0.65);
+  --color-text-inverse: #3a2c1f;
+  --color-accent: rgba(240, 227, 200, 0.35);
+  --color-glow: rgba(255, 210, 130, 0.35);
+  --font-family-serif: "EB Garamond", "Cormorant Garamond", "Georgia", "Times New Roman", serif;
+  --font-family-handwritten: "Segoe Print", "Bradley Hand", cursive;
+  --letter-spacing-wide: 0.35em;
+  --letter-spacing-normal: 0.02em;
+  --line-height-relaxed: 1.7;
+  --line-height-tight: 1.3;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* =========================================================
+   GLOBAL RESET (applies to ALL pages)
+========================================================= */
+
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-serif);
+  font-weight: 300;
+  line-height: var(--line-height-relaxed);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* All text inherits global font by default */
+* {
+  font-family: inherit;
+}
+
+/* =========================================================
+   GLOBAL NAVIGATION
+========================================================= */
+
+.global-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 32px;
+  background: rgba(13, 10, 7, 0.7);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 248, 235, 0.06);
+}
+
+.nav-brand {
+  color: rgba(255, 248, 235, 0.9);
+  font-family: var(--font-family-serif);
+  font-size: 14px;
+  letter-spacing: 0.25em;
+  text-decoration: none;
+  transition: opacity 0.3s ease;
+}
+
+.nav-brand:hover {
+  opacity: 0.7;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav-links a {
+  color: rgba(255, 248, 235, 0.5);
+  font-family: var(--font-family-serif);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-decoration: none;
+  transition: color 0.3s ease, opacity 0.3s ease;
+}
+
+.nav-links a:hover {
+  color: rgba(255, 248, 235, 0.85);
+}
+
+.sound-toggle {
+  background: transparent;
+  border: none;
+  color: rgba(255, 248, 235, 0.5);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.3s ease;
+}
+
+.sound-toggle:hover {
+  color: rgba(255, 248, 235, 0.85);
+}
+
+/* =========================================================
+   HOME PAGE – SCENE BACKGROUND (covering the viewport)
+========================================================= */
+
+.home-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #0d0a07;
+}
+
+.home-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Container that scales the scene to cover the viewport */
+.scene-background-container {
+  position: absolute;
+  width: 1672px;
+  height: 941px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* The actual scene camera */
+.scene-background-container .scene-camera {
+  position: relative;
+  width: 1672px;
+  height: 941px;
+  flex-shrink: 0;
+  transform-origin: center center;
+}
+
+/* Layers inside the camera */
+.scene-background-container .scene-camera .layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1672px;
+  height: 941px;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Rain */
+.scene-background-container .scene-camera .rain {
+  position: absolute;
+  left: 10px;
+  top: 100px;
+  width: 510px;
+  height: 470px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 40;
+  mask-image: linear-gradient(to bottom, black 0%, black 92%, transparent 100%);
+}
+
+/* Lamp glow */
+.scene-background-container .scene-camera .lamp-glow {
+  position: absolute;
+  left: 1230px;
+  top: 250px;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 130, 0.35) 0%, rgba(255, 190, 100, 0.18) 35%, rgba(255, 180, 80, 0.08) 60%, transparent 75%);
+  filter: blur(6px);
+  pointer-events: none;
+  z-index: 15;
+  transform-origin: center;
+}
+
+/* Steam video */
+.scene-background-container .scene-camera .steam-video {
+  position: absolute;
+  left: 180px;
+  top: 500px;
+  width: 250px;
+  height: 220px;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 45;
+  mix-blend-mode: screen;
+  opacity: 0.4;
+}
+
+/* Film grain */
+.scene-background-container .scene-camera .film-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 600;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.5'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  animation: grain-move 0.25s steps(2) infinite;
+}
+
+/* Content overlay on top of the scene */
+.home-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 120px 24px 60px;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  pointer-events: auto;
+  min-height: 100vh;
+}
+
+/* Dark scrim for text readability */
+.home-content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, rgba(13, 10, 7, 0.05) 0%, rgba(13, 10, 7, 0.25) 80%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* =========================================================
+   HOME PAGE TEXT STYLES
+========================================================= */
+
+.hero-title {
+  font-family: var(--font-family-serif);
+  font-size: clamp(48px, 10vw, 80px);
+  font-weight: 400;
+  letter-spacing: 0.25em;
+  margin: 0 0 20px;
+  color: #f5ede4;
+}
+
+.hero-subtitle {
+  font-size: clamp(16px, 2.5vw, 24px);
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
+}
+
+.hero-tagline {
+  font-size: clamp(14px, 1.8vw, 20px);
+  font-weight: 300;
+  line-height: 1.8;
+  color: rgba(245, 237, 228, 0.7);
+  margin-bottom: 40px;
+  font-style: italic;
+}
+
+.steps-container {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin: 30px 0 50px;
+  flex-wrap: wrap;
+}
+
+.step {
+  flex: 1;
+  min-width: 160px;
+  max-width: 220px;
+  text-align: center;
+  padding: 16px 8px;
+  border-top: 1px solid rgba(255, 248, 235, 0.08);
+}
+
+.step-number {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: rgba(255, 248, 235, 0.35);
+  margin-bottom: 6px;
+}
+
+.step h3 {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  margin: 0 0 4px;
+}
+
+.step p {
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.begin-hero {
+  display: inline-block;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 248, 235, 0.85);
+  font-family: var(--font-family-serif);
+  font-size: 16px;
+  letter-spacing: 0.35em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 248, 235, 0.25);
+  cursor: pointer;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  text-decoration: none;
+}
+
+.begin-hero:hover {
+  opacity: 0.6;
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   HOW IT WORKS, ABOUT, JOURNAL (shared styles)
+========================================================= */
+
+.how-it-works-page,
+.about-page,
+.journal-page {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  padding: 120px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  overflow-y: auto;
+}
+
+.page-scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(20,14,8,0.4) 0%, transparent 70%);
+  z-index: 0;
+}
+
+.page-title {
+  font-family: var(--font-family-serif);
+  font-size: clamp(32px, 6vw, 48px);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  margin: 0 0 30px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Journey grid */
+.journey-grid {
+  max-width: 700px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.journey-step {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 248, 235, 0.04);
+}
+
+.journey-step .step-tag {
+  min-width: 100px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: rgba(255, 248, 235, 0.4);
+  text-align: right;
+}
+
+.journey-step p {
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.6;
+  margin: 0;
+  text-align: left;
+  color: rgba(255, 248, 235, 0.85);
+}
+
+/* ABOUT */
+.about-subtitle {
+  font-size: clamp(18px, 2.5vw, 26px);
+  font-weight: 300;
+  font-style: italic;
+  color: var(--color-text-secondary);
+  margin: 0 0 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.about-description {
+  max-width: 620px;
+  font-size: 16px;
+  line-height: 1.8;
+  font-weight: 300;
+  color: rgba(255, 248, 235, 0.8);
+  margin: 0 auto 30px;
+  position: relative;
+  z-index: 1;
+}
+
+.about-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin: 10px 0 30px;
+  position: relative;
+  z-index: 1;
+}
+
+.about-tags span {
+  padding: 6px 16px;
+  border: 1px solid rgba(255, 248, 235, 0.1);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 248, 235, 0.5);
+  border-radius: 20px;
+}
+
+.about-closing {
+  font-size: 18px;
+  font-weight: 300;
+  font-style: italic;
+  line-height: 1.7;
+  color: rgba(255, 248, 235, 0.6);
+  margin-top: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+/* JOURNAL */
+.journal-prompt {
+  font-size: 16px;
+  font-weight: 300;
+  font-style: italic;
+  color: var(--color-text-secondary);
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.journal-textarea {
+  width: 100%;
+  max-width: 600px;
+  min-height: 240px;
+  background: rgba(255, 248, 235, 0.04);
+  border: 1px solid rgba(255, 248, 235, 0.08);
+  border-radius: 4px;
+  padding: 16px 20px;
+  font-family: var(--font-family-serif);
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--color-text-primary);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.journal-textarea:focus {
+  border-color: rgba(255, 248, 235, 0.25);
+}
+
+.journal-textarea::placeholder {
+  color: rgba(255, 248, 235, 0.2);
+}
+
+.journal-save {
+  margin-top: 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 248, 235, 0.15);
+  color: rgba(255, 248, 235, 0.6);
+  font-family: var(--font-family-serif);
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.3s ease, border-color 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.journal-save:hover {
+  color: rgba(255, 248, 235, 0.9);
+  border-color: rgba(255, 248, 235, 0.3);
+}
+
+/* =========================================================
+   RESPONSIVE (mobile nav & text)
+========================================================= */
+
+@media (max-width: 768px) {
+  .global-nav {
+    padding: 14px 18px;
+  }
+  .nav-links {
+    gap: 14px;
+  }
+  .nav-links a {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+  }
+  .steps-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .step {
+    max-width: 100%;
+    width: 100%;
+    border-top: none;
+    border-bottom: 1px solid rgba(255, 248, 235, 0.06);
+    padding: 12px 0;
+  }
+  .journey-step {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px 0;
+  }
+  .journey-step .step-tag {
+    text-align: left;
+    font-size: 10px;
+  }
+  .journey-step p {
+    font-size: 14px;
+  }
+  .home-content {
+    padding: 100px 20px 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .global-nav {
+    padding: 12px 14px;
+  }
+  .nav-links a:not(:last-child) {
+    display: none;
+  }
+  .nav-brand {
+    font-size: 12px;
+  }
+}
+
+/* =========================================================
+   RITUAL CONTAINER (overrides global overflow)
+========================================================= */
+
+.ritual-container {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+/* =========================================================
+   RITUAL SCENE (your existing styles)
+========================================================= */
+
+.scene {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.scene .scene-camera {
+  position: absolute;
+  width: 1672px;
+  height: 941px;
+  left: 50%;
+  top: 50%;
+  margin-left: -836px;
+  margin-top: -470.5px;
+  transform-origin: center center;
+}
+
+.scene .layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1672px;
+  height: 941px;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* =========================================================
+   RAIN
+========================================================= */
+
+.scene .rain {
+  position: absolute;
+  left: 10px;
+  top: 100px;
+  width: 510px;
+  height: 470px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 40;
+  mask-image: linear-gradient(to bottom, black 0%, black 92%, transparent 100%);
+}
+
+.raindrop {
+  position: absolute;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, transparent, rgba(220, 230, 235, 0.65), rgba(220, 230, 235, 0.12));
+  transform: rotate(7deg);
+  animation: rain-fall linear infinite;
+  will-change: transform;
+}
+
+@keyframes rain-fall {
+  0% {
+    transform: translate3d(-18px, -40px, 0) rotate(7deg);
+  }
+  100% {
+    transform: translate3d(45px, 540px, 0) rotate(7deg);
+  }
+}
+
+/* =========================================================
+   CURTAIN
+========================================================= */
+
+.curtain {
+  transform-origin: top center;
+}
+
+/* =========================================================
+   LAMP GLOW
+========================================================= */
+
+.scene .lamp-glow {
+  position: absolute;
+  left: 1230px;
+  top: 250px;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 130, 0.35) 0%, rgba(255, 190, 100, 0.18) 35%, rgba(255, 180, 80, 0.08) 60%, transparent 75%);
+  filter: blur(6px);
+  pointer-events: none;
+  z-index: 15;
+  transform-origin: center;
+}
+
+.person-breathing {
+  transform-origin: center bottom;
+}
+
+/* =========================================================
+   FILM GRAIN
+========================================================= */
+
+.film-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 600;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.5'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  animation: grain-move 0.25s steps(2) infinite;
+}
+
+@keyframes grain-move {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-1%, 1%); }
+  50% { transform: translate(1%, -1%); }
+  75% { transform: translate(1%, 1%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* =========================================================
+   BEGIN OVERLAY (ritual)
+========================================================= */
+
+.begin-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  pointer-events: none;
+  text-align: center;
+  transform: scale(1.2);
+}
+
+.begin-scrim {
+  position: absolute;
+  width: 640px;
+  height: 320px;
+  background: radial-gradient(ellipse, rgba(20,14,8,0.3) 0%, transparent 100%);
+  filter: blur(14px);
+  z-index: -1;
+}
+
+.begin-title {
+  margin: 0 0 14px;
+  color: #f0e3c8;
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: 0.35em;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+}
+
+.begin-divider {
+  width: 34px;
+  height: 1px;
+  margin: 0 0 22px;
+  background: rgba(240, 227, 200, 0.35);
+}
+
+.begin-subtitle {
+  margin: 0 0 40px;
+  max-width: 380px;
+  color: rgba(240, 227, 200, 0.72);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 20px;
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+}
+
+.begin-button {
+  border: 0;
+  background: transparent;
+  color: rgba(240, 227, 200, 0.85);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.35em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 0.5s ease, opacity 0.5s ease, transform 0.4s ease;
+}
+
+.begin-button:hover {
+  border-color: rgba(240, 227, 200, 0.5);
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   PAPER / NAME
+========================================================= */
+
+.paper-instruction {
+  position: fixed;
+  left: 45%;
+  top: 60%;
+  transform: translate(-50%, -50%);
+  z-index: 300;
+  color: rgba(255, 244, 220, 0.85);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+  text-align: center;
+  pointer-events: auto;
+  white-space: nowrap;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+
+.name-input {
+  display: block;
+  width: min(70vw, 420px);
+  max-width: 420px;
+  margin: 20px auto;
+  padding: 8px 5px;
+  border: none;
+  border-bottom: 1px solid rgba(70, 48, 30, 0.35);
+  outline: none;
+  background: transparent;
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 22px;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.locked-name {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  max-width: 650px;
+  margin: 0;
+  color: rgba(55, 38, 24, 0.9);
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: clamp(18px, 3vw, 40px);
+  font-weight: 400;
+  text-align: center;
+  pointer-events: none;
+  z-index: 45;
+}
+
+.locked-name--burning {
+  visibility: hidden;
+}
+
+/* =========================================================
+   REAL FIRE / PAPER COMPOSITOR
+========================================================= */
+
+.burn-paper-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 510;
+  display: block;
+  opacity: 0;
+  transform-origin: 0 0;
+  transform: matrix3d(0.780727083, 0.1324259999, 0, 0.000208328444, 0.0654983341, 0.1738967323, 0, -0.000314534332, 0, 0, 1, 0, 334.191075, 613.150004, 0, 1);
+  mix-blend-mode: normal;
+  filter: brightness(0.90) contrast(0.98) saturate(0.90) blur(0.08px);
+  backface-visibility: hidden;
+  will-change: opacity;
+}
+
+.burn-paper-canvas--active {
+  opacity: 1;
+}
+
+.burn-name-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1672px;
+  height: 941px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 530;
+  display: block;
+  opacity: 0;
+}
+
+.burn-name-canvas--active {
+  opacity: 1;
+}
+
+.burn-fire-window {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1672px;
+  height: 941px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 540;
+}
+
+.burn-fire-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  pointer-events: none;
+  user-select: none;
+  display: block;
+  transform-origin: 0 0;
+  transform: matrix3d(0.780727083, 0.1324259999, 0, 0.000208328444, 0.0654983341, 0.1738967323, 0, -0.000314534332, 0, 0, 1, 0, 334.191075, 613.150004, 0, 1);
+  mix-blend-mode: normal;
+  opacity: 1;
+  backface-visibility: hidden;
+  will-change: opacity;
+  filter: brightness(0.90) contrast(0.98) saturate(0.90) drop-shadow(0 3px 7px rgba(0, 0, 0, 0.22));
+  transition: opacity 500ms ease-out;
+}
+
+.burn-fire-canvas--active {
+  opacity: 1;
+}
+
+.burn-fire-canvas--hidden {
+  opacity: 0;
+}
+
+.burn-fire-source {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: -10px;
+  top: -10px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* =========================================================
+   FINAL ASH
+========================================================= */
+
+.burn-ash-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  pointer-events: none;
+  user-select: none;
+  display: block;
+  transform-origin: 0 0;
+  transform: matrix3d(0.780727083, 0.1324259999, 0, 0.000208328444, 0.0654983341, 0.1738967323, 0, -0.000314534332, 0, 0, 1, 0, 334.191075, 613.150004, 0, 1);
+  opacity: 0;
+  transition: opacity 700ms ease-out;
+  mix-blend-mode: normal;
+}
+
+.burn-ash-canvas--visible {
+  opacity: 0.94;
+}
+
+/* =========================================================
+   RELEASE
+========================================================= */
+
+.release-message {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  pointer-events: none;
+  color: rgba(255, 248, 235, 0.88);
+  text-align: center;
+  padding: 0 28px;
+}
+
+.release-message p {
+  margin: 0;
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  line-height: 1.5;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+}
+
+.release-message .release-breath {
+  margin-top: 24px;
+  font-size: 13px;
+  opacity: 0.55;
+}
+
+/* =========================================================
+   BREATHING
+========================================================= */
+
+.breathing-text {
+  animation: text-breathe 6.5s ease-in-out infinite;
+}
+
+@keyframes text-breathe {
+  0%, 100% { opacity: 0.92; }
+  50% { opacity: 0.82; }
+}
+
+/* =========================================================
+   STAGE 2 (warm light)
+========================================================= */
+
+.window-daylight {
+  position: absolute;
+  left: -110px;
+  top: -95px;
+  width: 760px;
+  height: 700px;
+  pointer-events: none;
+  z-index: 32;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 45% 42%, rgba(255, 244, 210, 0.22) 0%, rgba(255, 232, 176, 0.10) 28%, rgba(255, 220, 155, 0.045) 48%, transparent 72%);
+  filter: blur(14px);
+  mix-blend-mode: screen;
+  transform-origin: 45% 42%;
+}
+
+.sun-rays {
+  position: absolute;
+  left: 85px;
+  top: 75px;
+  width: 720px;
+  height: 720px;
+  pointer-events: none;
+  z-index: 34;
+  overflow: hidden;
+  filter: blur(0.6px);
+  mix-blend-mode: screen;
+}
+
+.sun-ray {
+  position: absolute;
+  top: -150px;
+  height: 1050px;
+  display: block;
+  background: linear-gradient(180deg, rgba(255, 245, 214, 0.14), rgba(255, 228, 170, 0.06) 42%, transparent 86%);
+  transform-origin: top center;
+  filter: blur(4px);
+}
+
+.sun-ray-1 { left: 80px; width: 92px; transform: rotate(31deg); opacity: 0.5; }
+.sun-ray-2 { left: 260px; width: 62px; transform: rotate(35deg); opacity: 0.32; }
+.sun-ray-3 { left: 390px; width: 44px; transform: rotate(38deg); opacity: 0.22; }
+
+.sunlight-patch {
+  position: absolute;
+  left: 355px;
+  top: 520px;
+  width: 760px;
+  height: 330px;
+  pointer-events: none;
+  z-index: 36;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 225, 164, 0.30) 0%, rgba(255, 218, 150, 0.12) 30%, rgba(255, 205, 130, 0.035) 58%, transparent 76%);
+  filter: blur(18px);
+  mix-blend-mode: screen;
+  transform-origin: 38% 50%;
+}
+
+.room-warmth {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 37;
+  background: radial-gradient(ellipse at 23% 25%, rgba(255, 225, 170, 0.09) 0%, transparent 42%), radial-gradient(ellipse at 57% 68%, rgba(255, 205, 135, 0.055) 0%, transparent 54%);
+  mix-blend-mode: screen;
+  filter: blur(14px);
+}
+
+.steam-video--warm {
+  opacity: 0.52;
+  filter: blur(0.1px) brightness(1.06);
+  animation: steam-breathe 6.5s ease-in-out infinite;
+}
+
+@keyframes steam-breathe {
+  0%, 100% { opacity: 0.52; }
+  50% { opacity: 0.58; }
+}
+
+/* =========================================================
+   LET GO CARD
+========================================================= */
+
+/* ─── KEEPSAKE CARD STAGE ──────────────────────────────────────────── */
+
+/* =========================================================
+   KEEPSAKE CARD – PREMIUM CINEMATIC STAGE
+========================================================= */
+
+/* Overlay (soft dark + blur) */
+.card-stage-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1999;
+  background: radial-gradient(ellipse at 50% 50%, rgba(13, 10, 7, 0.3) 0%, rgba(13, 10, 7, 0.6) 100%);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+/* Main card – large portrait keepsake */
+.keepsake-card {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  width: min(620px, 78vw);
+  height: min(860px, 86vh);
+  max-width: 680px;
+  max-height: 900px;
+  background: rgba(248, 242, 228, 0.96);
+  border: 1px solid rgba(70, 48, 30, 0.15);
+  border-radius: 2px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+/* Paper texture – subtle grain */
+.card-texture {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.05'/%3E%3C/svg%3E");
+  opacity: 0.25;
+}
+
+/* Card inner content – centered, flexible */
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 12% 10%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: rgba(55, 38, 24, 0.9);
+}
+
+/* Ornament */
+.card-ornament {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 auto;
+}
+
+.card-ornament.top { margin-bottom: 4%; }
+.card-ornament.bottom { margin-top: 4%; }
+
+.ornament-line {
+  display: block;
+  width: 30px;
+  height: 1px;
+  background: rgba(55, 38, 24, 0.15);
+}
+
+.ornament-leaf {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50% 50% 50% 0;
+  background: rgba(55, 38, 24, 0.08);
+  transform: rotate(-45deg);
+}
+.ornament-leaf:last-of-type {
+  transform: rotate(45deg);
+}
+
+/* Typography – all centered, elegant */
+.card-kicker {
+  margin: 0 0 6px;
+  font-size: clamp(9px, 1vw, 12px);
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+.card-title {
+  margin: 0 0 6px;
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  color: rgba(55, 38, 24, 0.95);
+}
+
+.card-divider {
+  width: 32px;
+  height: 1px;
+  margin: 0 auto 12px;
+  background: rgba(55, 38, 24, 0.2);
+}
+
+.card-subtitle {
+  margin: 0 0 4px;
+  font-size: clamp(12px, 1.2vw, 16px);
+  font-weight: 300;
+  opacity: 0.6;
+}
+
+.card-handwritten-name {
+  margin: 0 0 6px;
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: clamp(34px, 6vw, 56px);
+  font-weight: 400;
+  color: rgba(55, 38, 24, 0.95);
+  line-height: 1.2;
+}
+
+.card-date {
+  margin: 0 0 12px;
+  font-size: clamp(10px, 1vw, 14px);
+  opacity: 0.4;
+  letter-spacing: 0.05em;
+}
+
+.card-quote {
+  margin: 0;
+  font-size: clamp(13px, 1.2vw, 16px);
+  font-weight: 300;
+  font-style: italic;
+  opacity: 0.6;
+  line-height: 1.5;
+}
+
+/* Actions */
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.card-action-save,
+.card-action-continue {
+  border: 0;
+  background: transparent;
+  color: rgba(55, 38, 24, 0.8);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(10px, 1vw, 12px);
+  letter-spacing: 0.26em;
+  text-indent: 0.26em;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.card-action-save {
+  border: 1px solid rgba(55, 38, 24, 0.2);
+  border-radius: 2px;
+  background: rgba(55, 38, 24, 0.04);
+}
+
+.card-action-continue {
+  opacity: 0.4;
+  border: none;
+  margin-top: 4px;
+}
+
+.card-action-save:hover,
+.card-action-continue:hover {
+  opacity: 0.6;
+  transform: translateY(-1px);
+}
+
+/* ─── RESPONSIVE ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .keepsake-card {
+    width: 90vw;
+    height: 80vh;
+    max-height: 700px;
+  }
+  .card-inner {
+    padding: 10% 8%;
+  }
+  .card-title {
+    font-size: 28px;
+  }
+  .card-handwritten-name {
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .keepsake-card {
+    width: 94vw;
+    height: 75vh;
+    max-height: 600px;
+  }
+  .card-inner {
+    padding: 8% 6%;
+  }
+  .card-title {
+    font-size: 22px;
+  }
+  .card-handwritten-name {
+    font-size: 26px;
+  }
+  .card-ornament.top { margin-bottom: 3%; }
+  .card-ornament.bottom { margin-top: 3%; }
+}
+/* ─── RESPONSIVE (mobile) ───────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .keepsake-card {
+    padding: 32px 20px 28px;
+    width: 92vw;
+  }
+  .card-title {
+    font-size: 20px;
+  }
+  .card-handwritten-name {
+    font-size: 28px;
+  }
+  .card-ornament--top { margin-bottom: 14px; }
+  .card-ornament--bottom { margin-top: 16px; }
+}
+
+/* =========================================================
+   DONATION
+========================================================= */
+
+.donation-section {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: auto;
+  color: rgba(255, 248, 235, 0.88);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+}
+
+.donation-eyebrow {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  opacity: 0.45;
+  margin-bottom: 14px;
+}
+
+.donation-section p {
+  max-width: 400px;
+  margin: 0 0 34px;
+  font-size: 16px;
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+}
+
+.donation-note {
+  font-size: 14px;
+  opacity: 0.65;
+  margin-top: 12px;
+}
+
+.donation-section button {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 248, 235, 0.85);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-indent: 0.26em;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.donation-section button + button {
+  margin-top: 14px;
+  opacity: 0.45;
+}
+
+.donation-section button:hover {
+  opacity: 0.6;
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   FINAL EXIT
+========================================================= */
+
+.final-exit {
+  position: fixed;
+  inset: 0;
+  z-index: 9005;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: auto;
+  color: rgba(255, 248, 235, 0.9);
+}
+
+.final-exit p {
+  max-width: 380px;
+  margin: 0 0 30px;
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.65;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.4);
+}
+
+.final-exit button {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 248, 235, 0.7);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  padding-bottom: 3px;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.5s ease, opacity 0.5s ease, transform 0.4s ease;
+}
+
+.final-exit button:hover {
+  border-color: rgba(255, 248, 235, 0.35);
+  opacity: 0.55;
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   STEAM VIDEO
+========================================================= */
+
+.steam-video {
+  position: absolute;
+  left: 180px;
+  top: 500px;
+  width: 250px;
+  height: 220px;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 45;
+  mix-blend-mode: screen;
+  opacity: 0.4;
+}
+
+/* =========================================================
+   POST-BURN AFFIRMATIONS
+========================================================= */
+
+.affirmation-sequence {
+  position: fixed;
+  inset: 0;
+  z-index: 9001;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32px;
+  pointer-events: none;
+  text-align: center;
+  color: rgba(255, 249, 237, 0.9);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+.affirmation-sequence p {
+  max-width: 720px;
+  margin: 0;
+  font-size: clamp(18px, 1.6vw, 26px);
+  font-weight: 300;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+}
+
+.affirmation-mark {
+  margin-top: 20px;
+  font-size: 14px;
+  opacity: 0.35;
+}
+
+/* =========================================================
+   MEMORY PROMPT
+========================================================= */
+/* =========================================================
+   MEMORY PROMPT – CENTERED
+========================================================= */
+
+.memory-prompt {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9002;
+  pointer-events: none;
+}
+
+.memory-prompt-content {
+  max-width: 520px;
+  width: 90vw;
+  padding: 20px;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.memory-prompt-title {
+  margin: 0 0 12px;
+  color: rgba(255, 249, 237, 0.92);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(20px, 3vw, 32px);
+  font-weight: 300;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.4);
+}
+
+.memory-prompt-subtitle {
+  margin: 0 0 28px;
+  color: rgba(255, 249, 237, 0.6);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(14px, 1.4vw, 18px);
+  font-weight: 300;
+  line-height: 1.6;
+  font-style: italic;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+}
+
+.memory-prompt-actions {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+}
+
+.memory-prompt-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 249, 237, 0.8);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  text-indent: 0.25em;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: opacity 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+  border-bottom: 1px solid transparent;
+}
+
+.memory-prompt-btn.primary {
+  border-bottom-color: rgba(255, 249, 237, 0.25);
+}
+
+.memory-prompt-btn.secondary {
+  opacity: 0.4;
+}
+
+.memory-prompt-btn:hover {
+  opacity: 0.65;
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   PAID KEEPSAKE CHECKOUT
+========================================================= */
+
+.card-checkout {
+  position: fixed;
+  left: 50%;
+  top: 56%;
+  transform: translate(-50%, -50%);
+  z-index: 9003;
+  width: min(440px, calc(100vw - 40px));
+  padding: 34px 32px 28px;
+  text-align: center;
+  color: rgba(255, 249, 237, 0.9);
+  font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.38);
+}
+
+.card-checkout-eyebrow {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  opacity: 0.4;
+}
+
+.card-checkout-title {
+  margin: 14px 0 0;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 300;
+}
+
+.card-checkout-copy {
+  max-width: 390px;
+  margin: 13px auto 0;
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.65;
+}
+
+.card-price {
+  margin: 18px 0 14px;
+  font-size: 20px;
+  opacity: 0.85;
+}
+
+.card-payment-button {
+  padding: 8px 14px;
+  background: transparent;
+  color: rgba(255, 249, 237, 0.88);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  border: 1px solid rgba(255, 249, 237, 0.18);
+  border-radius: 0;
+  transition: background 0.5s ease, border-color 0.5s ease, transform 0.4s ease;
+}
+
+.card-payment-button:hover {
+  background: rgba(255, 249, 237, 0.05);
+  border-color: rgba(255, 249, 237, 0.4);
+  transform: translateY(-1px);
+}
+
+.card-payment-later {
+  display: block;
+  margin: 16px auto 0;
+  padding: 6px 10px;
+  background: transparent;
+  color: rgba(255, 249, 237, 0.45);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+}
+
+/* =========================================================
+   RESPONSIVE (Mobile & Tablet) – OVERRIDES
+========================================================= */
+
+@media (max-width: 768px) {
+  .begin-container { transform: scale(1); }
+  .begin-title { font-size: 26px; letter-spacing: 0.25em; }
+  .begin-subtitle { font-size: 15px; max-width: 80vw; margin-bottom: 30px; }
+  .begin-button { font-size: 14px; }
+  .begin-scrim { width: 90vw; height: 200px; }
+
+  .paper-instruction { left: 50%; top: 70%; white-space: normal; max-width: 88vw; font-size: 20px; transform: translate(-50%, -50%); }
+  .name-input { width: min(80vw, 320px); font-size: 18px; margin-top: 14px; }
+
+  .release-message p { font-size: 22px; }
+  .release-breath { font-size: 14px; }
+
+  .affirmation-sequence p { max-width: 88vw; font-size: 20px; }
+  .affirmation-mark { font-size: 12px; }
+
+  .memory-prompt { width: 90vw; padding: 20px 18px; top: 54%; }
+  .memory-prompt-title { font-size: 20px; }
+  .memory-prompt-subtitle { font-size: 14px; }
+  .memory-prompt-actions { gap: 20px; margin-top: 24px; }
+  .memory-primary-button, .memory-secondary-button { font-size: 11px; }
+
+  .card-checkout { width: 90vw; padding: 24px 18px; top: 54%; }
+  .card-checkout-title { font-size: 20px; }
+  .card-checkout-copy { font-size: 14px; }
+  .card-price { font-size: 20px; }
+  .card-payment-button { font-size: 12px; padding: 10px 16px; }
+
+  .let-go-card { width: 88vw; max-width: 360px; padding: 32px 20px 28px; }
+  .card-title { font-size: 22px; }
+  .card-name { font-size: 28px; }
+  .card-quote { font-size: 12px; max-width: 90%; }
+
+  .donation-section p { font-size: 16px; max-width: 85vw; }
+  .final-exit p { font-size: 18px; max-width: 85vw; }
+  .final-exit button { font-size: 13px; }
+}
+
+@media (max-width: 420px) {
+  .begin-title { font-size: 22px; }
+  .begin-subtitle { font-size: 14px; }
+  .paper-instruction { font-size: 17px; top: 68%; }
+  .name-input { font-size: 16px; width: 85vw; }
+  .affirmation-sequence p { font-size: 17px; }
+  .memory-prompt-title { font-size: 17px; }
+  .card-checkout-title { font-size: 17px; }
+  .let-go-card { padding: 24px 16px 20px; }
+  .card-name { font-size: 24px; }
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .begin-title { font-size: 24px; }
+  .begin-subtitle { font-size: 14px; max-width: 70vw; }
+  .paper-instruction { top: 65%; font-size: 16px; white-space: normal; max-width: 85vw; }
+  .name-input { font-size: 16px; width: 60vw; margin-top: 10px; }
+  .release-message p { font-size: 20px; }
+  .release-breath { font-size: 13px; }
+  .affirmation-sequence p { font-size: 18px; max-width: 80vw; }
+  .memory-prompt { width: 80vw; top: 55%; padding: 20px 16px; }
+  .memory-prompt-title { font-size: 18px; }
+  .card-checkout { width: 80vw; top: 55%; padding: 20px 16px; }
+  .let-go-card { width: 80vw; max-width: 340px; padding: 28px 16px 24px; }
+  .card-name { font-size: 26px; }
+  .donation-section p { font-size: 14px; max-width: 80vw; }
+  .final-exit p { font-size: 16px; max-width: 80vw; }
+}
+
+/* =========================================================
+   POST-BURN OVERLAY GUARANTEE
+========================================================= */
+
+.release-message,
+.affirmation-sequence,
+.memory-prompt,
+.card-checkout,
+.let-go-card,
+.donation-section,
+.final-exit {
+  position: fixed;
+  z-index: 10000;
+}
+
+.affirmation-sequence {
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.release-message {
+  inset: 0;
 }
