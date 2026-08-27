@@ -10,6 +10,7 @@ const staticLayers = [
   "TABLE.png",
   "CUP.png",
   "LAMP.png",
+  "PERSON.png"
 ];
 
 export default function SceneBackground() {
