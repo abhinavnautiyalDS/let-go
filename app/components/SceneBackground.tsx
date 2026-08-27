@@ -8,7 +8,10 @@ const staticLayers = [
   "TABLE.png",
   "CUP.png",
   "LAMP.png",
+<<<<<<< HEAD
   "PERSON.png"
+=======
+>>>>>>> 2f6229e (Fix scene asset paths)
 ];
 
 const rainDrops = Array.from({ length: 200 }, (_, i) => ({
