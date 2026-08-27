@@ -15,6 +15,8 @@ const staticLayers = [
   "LAMP.png",
 ];
 
+
+
 const rainDrops = Array.from({ length: 200 }, (_, i) => ({
   left: (i * 11.73) % 85,
   top: (i * 17.41) % 100,
