@@ -3,12 +3,16 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
+// ─── ASSET PATHS ────────────────────────────────────────────────────────────
+const ASSET_BASE = "/assets/scene-01";
+const AUDIO_BASE = "/assets/audio";
+
 const staticLayers = [
-  "background.png",
-  "window.png",
-  "table.png",
-  "cup.png",
-  "lamp.png"
+  "BACKGROUND.png",
+  "WINDOW.png",
+  "TABLE.png",
+  "CUP.png",
+  "LAMP.png",
 ];
 
 const rainDrops = Array.from({ length: 200 }, (_, i) => ({
@@ -20,20 +24,11 @@ const rainDrops = Array.from({ length: 200 }, (_, i) => ({
   opacity: 0.3 + ((i * 0.07) % 0.28),
 }));
 
-const affirmations = [
-  "You do not have to carry what no longer belongs to you.",
-  "You made it through what brought you here.",
-  "You are allowed to remember without holding on.",
-  "You are enough, exactly as you are.",
-  "You are still here. You can begin again.",
-];
-
 const smoothstep = (a: number, b: number, x: number) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
 
-// Fast, single-pass chroma key with green-spill suppression.
 const chromaAlpha = (r: number, g: number, b: number) => {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -50,30 +45,233 @@ const chromaAlpha = (r: number, g: number, b: number) => {
   return Math.round(Math.max(0, Math.min(255, (1 - greenGate) * 255)));
 };
 
+// ─── NAME FITTING HELPERS ──────────────────────────────────────────────────
+
+const fitNameFontSize = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  maxFontSize: number,
+  fontFamily: string
+): number => {
+  let low = 8;
+  let high = maxFontSize;
+  let best = maxFontSize;
+  const weight = "400";
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    ctx.font = `${weight} ${mid}px ${fontFamily}`;
+    const metrics = ctx.measureText(text);
+    const width = metrics.width;
+    const height =
+      (metrics.actualBoundingBoxAscent || mid * 0.7) +
+      (metrics.actualBoundingBoxDescent || mid * 0.3);
+
+    if (width <= maxWidth && height <= maxHeight) {
+      best = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return best;
+};
+
+const measureNameFontSize = (
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  maxFontSize: number,
+  fontFamily: string
+): number => {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return maxFontSize;
+  return fitNameFontSize(ctx, text, maxWidth, maxHeight, maxFontSize, fontFamily);
+};
+
+const getMaxLinesForLength = (text: string): number => {
+  const len = text.trim().length;
+  if (len <= 18) return 1;
+  if (len <= 36) return 2;
+  if (len <= 60) return 3;
+  if (len <= 90) return 4;
+  if (len <= 130) return 5;
+  return 6;
+};
+
+const measureNameFontSizeMultiline = (
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  maxFontSize: number,
+  maxLines: number,
+  fontFamily: string
+): number => {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return maxFontSize;
+  return fitNameMultiline(ctx, text, maxWidth, maxHeight, maxFontSize, fontFamily, maxLines).fontSize;
+};
+
+const wrapText = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] => {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [text];
+
+  const lines: string[] = [];
+  let current = words[0];
+
+  const breakLongWord = (word: string): string[] => {
+    if (ctx.measureText(word).width <= maxWidth) return [word];
+    const parts: string[] = [];
+    let chunk = "";
+    for (const ch of word) {
+      const test = chunk + ch;
+      if (ctx.measureText(test).width <= maxWidth || chunk === "") {
+        chunk = test;
+      } else {
+        parts.push(chunk);
+        chunk = ch;
+      }
+    }
+    if (chunk) parts.push(chunk);
+    return parts;
+  };
+
+  if (ctx.measureText(current).width > maxWidth) {
+    const broken = breakLongWord(current);
+    lines.push(...broken.slice(0, -1));
+    current = broken[broken.length - 1] ?? "";
+  }
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    const test = `${current} ${word}`;
+    if (ctx.measureText(test).width <= maxWidth) {
+      current = test;
+    } else {
+      if (current) lines.push(current);
+      if (ctx.measureText(word).width > maxWidth) {
+        const broken = breakLongWord(word);
+        lines.push(...broken.slice(0, -1));
+        current = broken[broken.length - 1] ?? "";
+      } else {
+        current = word;
+      }
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+};
+
+const fitNameMultiline = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  maxFontSize: number,
+  fontFamily: string,
+  maxLines: number = 3
+): { fontSize: number; lines: string[]; lineHeight: number } => {
+  let low = 8;
+  let high = Math.max(8, Math.floor(maxFontSize));
+  let best = { fontSize: 8, lines: wrapText(ctx, text, maxWidth).slice(0, maxLines), lineHeight: 8 * 1.25 };
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    ctx.font = `400 ${mid}px ${fontFamily}`;
+    const lines = wrapText(ctx, text, maxWidth).slice(0, maxLines);
+    const lineHeight = mid * 1.25;
+    const totalHeight = lines.length * lineHeight;
+    const widest = lines.reduce(
+      (max, l) => Math.max(max, ctx.measureText(l).width),
+      0
+    );
+
+    if (widest <= maxWidth && totalHeight <= maxHeight) {
+      best = { fontSize: mid, lines, lineHeight };
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return best;
+};
+
+const computePaperTextBounds = (
+  alpha: Uint8ClampedArray,
+  w: number,
+  h: number
+): { x: number; y: number; w: number; h: number } | null => {
+  let minX = w;
+  let maxX = 0;
+  let minY = h;
+  let maxY = 0;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (alpha[y * w + x] > 20) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (maxX <= minX || maxY <= minY) return null;
+
+  const insetX = (maxX - minX) * 0.12;
+  const insetY = (maxY - minY) * 0.12;
+
+  return {
+    x: (minX + insetX) / w,
+    y: (minY + insetY) / h,
+    w: (maxX - minX - insetX * 2) / w,
+    h: (maxY - minY - insetY * 2) / h,
+  };
+};
+
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
-const W = 836;
-const H = 471;
+
+const W = 1280;
+const H = 720;
 const SOURCE_W = 320;
 const SOURCE_H = 180;
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
+
 export default function Scene01() {
-  console.log("SCENE01 BUILD MARKER: burn-fixed-1");
-  const [introFinished, setIntroFinished] = useState(false);
+  // ─── FLOW STATE ────────────────────────────────────────────────────
+  const [guideDismissed, setGuideDismissed] = useState(false);
   const [started, setStarted] = useState(false);
-
-  const [name, setName] = useState("");
+  const [introFinished, setIntroFinished] = useState(false);
+  const [showPaper, setShowPaper] = useState(false);
   const [nameLocked, setNameLocked] = useState(false);
-
-  const [burning, setBurning] = useState(false);
   const [paperBurned, setPaperBurned] = useState(false);
+  const [name, setName] = useState("");
 
-  const [released, setReleased] = useState(false);
+  // ─── OTHER STATES ──────────────────────────────────────────────────
   const [worldChanged, setWorldChanged] = useState(false);
   const [flicker, setFlicker] = useState(false);
+  const [paperReady, setPaperReady] = useState(false);
+
+  const [breathPhase, setBreathPhase] = useState<"inhale" | "exhale" | null>(null);
+  const [showLetGoText, setShowLetGoText] = useState(false);
+  const [releaseRaysOpacity, setReleaseRaysOpacity] = useState(0);
+  const [dustOpacity, setDustOpacity] = useState(0);
 
   type PostBurnStage =
     | "idle"
+    | "silence"
+    | "breathing"
+    | "breathPause"
     | "release"
     | "affirmation"
     | "memory"
@@ -83,57 +281,116 @@ export default function Scene01() {
     | "final";
 
   const [postBurnStage, setPostBurnStage] = useState<PostBurnStage>("idle");
-
-  const [showAffirmations, setShowAffirmations] = useState(false);
-  const [affirmationIndex, setAffirmationIndex] = useState(0);
   const [showMemoryPrompt, setShowMemoryPrompt] = useState(false);
   const [showCardCheckout, setShowCardCheckout] = useState(false);
-  // We keep these for compatibility, but we mainly use postBurnStage
   const [showCard, setShowCard] = useState(false);
   const [showDonation, setShowDonation] = useState(false);
   const [showFinalExit, setShowFinalExit] = useState(false);
 
-  const [paperReady, setPaperReady] = useState(false);
+  // ─── REFS ──────────────────────────────────────────────────────────
 
-  // ─── AUDIO REFS ──────────────────────────────────────────────────────
+  const nameOverlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const nameFullCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const nameWipeRafRef = useRef<number | null>(null);
+  const NAME_WIPE_DURATION_MS = 1400;
+
+  const cardContentRef = useRef<HTMLDivElement | null>(null);
+  const [cardNameFontSize, setCardNameFontSize] = useState(56);
+
   const rainAudio = useRef<HTMLAudioElement | null>(null);
-  const breathingAudio = useRef<HTMLAudioElement | null>(null);
-  const roomMusicAudio = useRef<HTMLAudioElement | null>(null);
+  const roomAudio = useRef<HTMLAudioElement | null>(null);
   const fireAudio = useRef<HTMLAudioElement | null>(null);
-  const releaseAudio = useRef<HTMLAudioElement | null>(null);
-  const typingAudio = useRef<HTMLAudioElement | null>(null);
+  const clickAudio = useRef<HTMLAudioElement | null>(null);
+  const inhaleAudio = useRef<HTMLAudioElement | null>(null);
+  const exhaleAudio = useRef<HTMLAudioElement | null>(null);
+  const subtleWindAudio = useRef<HTMLAudioElement | null>(null);
+  const releaseAmbienceAudio = useRef<HTMLAudioElement | null>(null);
 
   const fireVideoRef = useRef<HTMLVideoElement | null>(null);
-  const nameBurnRef = useRef<HTMLDivElement | null>(null);
   const sceneCameraRef = useRef<HTMLDivElement | null>(null);
 
   const burnCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const nameBurnCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fireCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const ashCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const activeIntervals = useRef<Set<number>>(new Set());
+  const activeTimeouts = useRef<Set<number>>(new Set());
+
+  const trackedTimeout = (fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      activeTimeouts.current.delete(id);
+      fn();
+    }, ms);
+    activeTimeouts.current.add(id);
+    return id;
+  };
+
+  const trackedInterval = (fn: () => void, ms: number) => {
+    const id = window.setInterval(fn, ms);
+    activeIntervals.current.add(id);
+    return id;
+  };
+
+  const clearTrackedInterval = (id: number) => {
+    window.clearInterval(id);
+    activeIntervals.current.delete(id);
+  };
+
+  useEffect(() => {
+    return () => {
+      activeTimeouts.current.forEach((id) => window.clearTimeout(id));
+      activeIntervals.current.forEach((id) => window.clearInterval(id));
+      [
+        rainAudio,
+        roomAudio,
+        fireAudio,
+        clickAudio,
+        inhaleAudio,
+        exhaleAudio,
+        subtleWindAudio,
+        releaseAmbienceAudio,
+      ].forEach((ref) => {
+        const audio = ref.current;
+        if (audio) {
+          audio.pause();
+        }
+      });
+    };
+  }, []);
 
   // ─── AUDIO HELPERS ──────────────────────────────────────────────────────
 
   const fadeAudio = (
     audio: HTMLAudioElement | null,
     targetVolume: number,
-    duration: number
+    duration: number,
+    onDone?: () => void
   ) => {
     if (!audio) return;
     const startVolume = audio.volume;
     const difference = targetVolume - startVolume;
     const steps = 30;
-    const stepTime = duration / steps;
+    const stepTime = Math.max(16, duration / steps);
     let currentStep = 0;
-    const interval = window.setInterval(() => {
+    const interval = trackedInterval(() => {
       currentStep++;
       const progress = currentStep / steps;
-      audio.volume = startVolume + difference * progress;
+      audio.volume = Math.max(0, Math.min(1, startVolume + difference * progress));
       if (currentStep >= steps) {
-        clearInterval(interval);
-        audio.volume = targetVolume;
+        clearTrackedInterval(interval);
+        audio.volume = Math.max(0, Math.min(1, targetVolume));
+        onDone?.();
       }
     }, stepTime);
+    return interval;
+  };
+
+  const stopAudio = (audio: HTMLAudioElement | null, duration = 800) => {
+    if (!audio) return;
+    if (audio.paused) return;
+    fadeAudio(audio, 0, duration, () => {
+      audio.pause();
+    });
   };
 
   const playOnce = (audio: HTMLAudioElement | null, volume: number) => {
@@ -143,14 +400,14 @@ export default function Scene01() {
     audio.play().catch(() => {});
   };
 
-  const startRoomAudio = () => {
-    const rain = rainAudio.current;
-    const breathing = breathingAudio.current;
-    const music = roomMusicAudio.current;
-
-    if (rain) { rain.volume = 0.18; rain.loop = true; rain.play().catch(() => { }); }
-    if (breathing) { breathing.volume = 0.08; breathing.loop = true; breathing.play().catch(() => { }); }
-    if (music) { music.volume = 0.16; music.loop = true; music.play().catch(() => { }); }
+  const playLoop = (audio: HTMLAudioElement | null, volume: number) => {
+    if (!audio) return;
+    audio.loop = true;
+    if (audio.paused) {
+      audio.volume = 0;
+      audio.play().catch(() => {});
+    }
+    fadeAudio(audio, volume, 2500);
   };
 
   // ─── FULLSCREEN TOGGLE ─────────────────────────────────────────────
@@ -221,146 +478,89 @@ export default function Scene01() {
     return () => clearInterval(interval);
   }, [started]);
 
-  // ─── INTRO TIMER ──────────────────────────────────────────────────────
+  // ─── GUIDE → BEGIN OVERLAY (NO CAMERA MOVEMENT) ─────────────────
 
+  // When guide is dismissed → show the BEGIN overlay
   useEffect(() => {
-    const timer = setTimeout(() => setIntroFinished(true), 12000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!guideDismissed) return;
 
-  // ─── LANDING PAGE RAIN ──────────────────────────────────────────────
+    // Show the BEGIN overlay immediately
+    setIntroFinished(true);
+  }, [guideDismissed]);
+
+  // ─── BEGIN BUTTON → CAMERA MOVEMENT + PAPER ─────────────────────
+
+  const handleBeginRitual = () => {
+    toggleFullscreen();
+    setStarted(true); // Triggers camera animation
+    setShowPaper(true); // Paper will appear after camera settles
+    playOnce(clickAudio.current, 0.2);
+  };
+
+  // ─── AUDIO ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     const rain = rainAudio.current;
     if (!rain) return;
-    rain.volume = 0.18;
     rain.loop = true;
+    rain.volume = 0.16;
     rain.play().catch(() => {});
   }, []);
 
-  // ─── SOUND: AFTER BEGIN ─────────────────────────────────────────────
-
   useEffect(() => {
     if (!started) return;
-    
-    const rain = rainAudio.current;
-    const music = roomMusicAudio.current;
-    const breathing = breathingAudio.current;
-    
-    if (rain) fadeAudio(rain, 0.15, 3000);
-    if (music) {
-      music.volume = 0;
-      music.loop = true;
-      music.play().catch(() => {});
-      fadeAudio(music, 0.12, 4000);
-    }
-    if (breathing) {
-      breathing.volume = 0.04;
-      breathing.loop = true;
-      breathing.play().catch(() => {});
-    }
+    fadeAudio(rainAudio.current, 0.14, 3000);
+    playLoop(roomAudio.current, 0.14);
   }, [started]);
 
-  // ─── NAME LOCK → BURN TRIGGER ──────────────────────────────────────
+  useEffect(() => {
+    if (!started || nameLocked) return;
+    fadeAudio(roomAudio.current, 0.09, 2000);
+  }, [started, nameLocked]);
 
   useEffect(() => {
     if (!nameLocked) return;
-    const timer = setTimeout(() => setBurning(true), 2500);
-    return () => clearTimeout(timer);
+    fadeAudio(roomAudio.current, 0.05, 400);
+    const timer = trackedTimeout(() => setBurning(true), 550);
+    return () => window.clearTimeout(timer);
   }, [nameLocked]);
 
-  // ─── TYPING SOUND ────────────────────────────────────────────────────
+  // ─── PAPER BURNING ─────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (!nameLocked) return;
-    
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta' || e.key === 'Tab') return;
-      if (e.key.length > 1) return;
-      
-      const typing = typingAudio.current;
-      if (typing) {
-        typing.currentTime = 0;
-        typing.volume = 0.25;
-        typing.play().catch(() => {});
-      }
-    };
-    
-    const input = document.querySelector('.name-input') as HTMLInputElement;
-    if (input) {
-      input.addEventListener('keydown', handleKeyPress);
-      return () => input.removeEventListener('keydown', handleKeyPress);
-    }
-  }, [nameLocked]);
-
-  // ─── SOUND: PAPER BURNING ───────────────────────────────────────────
+  const [burning, setBurning] = useState(false);
 
   useEffect(() => {
     if (!burning) return;
     const fire = fireAudio.current;
-    const rain = rainAudio.current;
-    const music = roomMusicAudio.current;
-    
     if (fire) {
       fire.currentTime = 0;
-      fire.volume = 0.35;
       fire.loop = true;
+      fire.volume = 0;
       fire.play().catch(() => {});
+      fadeAudio(fire, 0.4, 1200);
     }
-    
-    if (rain) fadeAudio(rain, 0.08, 2000);
-    if (music) fadeAudio(music, 0.08, 2000);
+    fadeAudio(rainAudio.current, 0.05, 1800);
+    fadeAudio(roomAudio.current, 0.03, 1800);
   }, [burning]);
 
-  // ─── CACHED NAME TRANSFORM ──────────────────────────────────────────
-
-  const nameTransform = useRef<{ x: number; y: number; fontSize: number; color: string; font: string; letterSpacing: number } | null>(null);
-
-  const computeNameTransform = () => {
-    if (!nameBurnRef.current || !sceneCameraRef.current || !name) return;
-    const nameRect = nameBurnRef.current.getBoundingClientRect();
-    const cameraRect = sceneCameraRef.current.getBoundingClientRect();
-    const cameraScaleX = cameraRect.width / 1672;
-    const cameraScaleY = cameraRect.height / 941;
-    if (!cameraScaleX || !cameraScaleY) return;
-
-    const bufferScale = W / 1672;
-    const localCenterX = ((nameRect.left + nameRect.width / 2 - cameraRect.left) / cameraScaleX) * bufferScale;
-    const localCenterY = ((nameRect.top + nameRect.height / 2 - cameraRect.top) / cameraScaleY) * bufferScale;
-    const computed = window.getComputedStyle(nameBurnRef.current);
-    const fontSize = (parseFloat(computed.fontSize) / cameraScaleY) * bufferScale;
-    const fontWeight = computed.fontWeight || "400";
-    const fontFamily = computed.fontFamily || '"Segoe Print", cursive';
-    const letterSpacing = ((parseFloat(computed.letterSpacing) || 0) / cameraScaleX) * bufferScale;
-    const color = computed.color || "rgba(55,38,24,0.9)";
-    const font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-
-    nameTransform.current = {
-      x: localCenterX,
-      y: localCenterY,
-      fontSize,
-      color,
-      font,
-      letterSpacing,
-    };
-  };
-
-  // Recompute when name locks
   useEffect(() => {
-    if (nameLocked && name) {
-      requestAnimationFrame(() => computeNameTransform());
+    if (!burning) return;
+    if (nameWipeRafRef.current !== null) {
+      cancelAnimationFrame(nameWipeRafRef.current);
+      nameWipeRafRef.current = null;
     }
-  }, [nameLocked, name]);
+    const overlay = nameOverlayCanvasRef.current;
+    const ctx = overlay?.getContext("2d");
+    ctx?.clearRect(0, 0, W, H);
+  }, [burning]);
 
-  // ─── PAPER FIRST-FRAME PNG ─────────────────────────────────────────
+  // ─── PAPER PNG LOADING ─────────────────────────────────────────────
 
   const paperPngRef = useRef<HTMLImageElement | null>(null);
-
-  // Low-res paper data and alpha
   const lowResPaperData = useRef<Uint8ClampedArray | null>(null);
   const lowResPaperAlpha = useRef<Uint8ClampedArray | null>(null);
+  const paperTextBoundsRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
 
-  // Pre-allocated buffers (low-res only)
   const burnMask = useRef<Float32Array>(new Float32Array(SOURCE_W * SOURCE_H));
   const tempDiffusion = useRef<Float32Array>(new Float32Array(SOURCE_W * SOURCE_H));
   const fireMaskData = useRef<Uint8ClampedArray>(new Uint8ClampedArray(SOURCE_W * SOURCE_H * 4));
@@ -369,7 +569,6 @@ export default function Scene01() {
   const charImageData = useRef<Uint8ClampedArray>(new Uint8ClampedArray(SOURCE_W * SOURCE_H * 4));
   const edgeImageData = useRef<Uint8ClampedArray>(new Uint8ClampedArray(SOURCE_W * SOURCE_H * 4));
 
-  // Offscreen canvases for low-res processing
   const lowResPaperCanvas = useRef<HTMLCanvasElement | null>(null);
   const lowResCompositeCanvas = useRef<HTMLCanvasElement | null>(null);
   const lowResBurnMaskCanvas = useRef<HTMLCanvasElement | null>(null);
@@ -378,7 +577,6 @@ export default function Scene01() {
   const fireMaskCanvas = useRef<HTMLCanvasElement | null>(null);
   const sourceCanvas = useRef<HTMLCanvasElement | null>(null);
 
-  // Compositor state
   const compositorReady = useRef(false);
   const compositorStarted = useRef(false);
   const loopId = useRef<number | null>(null);
@@ -392,12 +590,10 @@ export default function Scene01() {
   const finalRenderPending = useRef(false);
   const compositorEnded = useRef(false);
 
-  // ─── LOAD FIRST-FRAME PNG ──────────────────────────────────────────
-
   useEffect(() => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = "/assets/scene-01/fire-paper-first-frame.png";
+    img.src = `${ASSET_BASE}/fire-paper-first-frame.png`;
     img.onload = () => {
       paperPngRef.current = img;
       setPaperReady(true);
@@ -426,6 +622,8 @@ export default function Scene01() {
       lowResPaperAlpha.current = alpha;
       lowResPaperCanvas.current = lrCanvas;
 
+      paperTextBoundsRef.current = computePaperTextBounds(alpha, SOURCE_W, SOURCE_H);
+
       const compCanvas = document.createElement("canvas");
       compCanvas.width = SOURCE_W;
       compCanvas.height = SOURCE_H;
@@ -448,81 +646,155 @@ export default function Scene01() {
     return () => { img.onload = null; };
   }, []);
 
-  // ─── NAME OVERLAY ON PAPER ──────────────────────────────────────────
+  // ─── NAME WIPE ANIMATION ───────────────────────────────────────────
 
-  useEffect(() => {
-    if (!nameLocked || !name || !lowResPaperCanvas.current || !paperReady) return;
-    if (!nameTransform.current) {
-      computeNameTransform();
-    }
-    const transform = nameTransform.current;
-    if (!transform) return;
-
-    const lrCanvas = lowResPaperCanvas.current;
-    const ctx = lrCanvas.getContext("2d");
+  const animateNameWipe = (durationMs: number) => {
+    const overlay = nameOverlayCanvasRef.current;
+    const full = nameFullCanvasRef.current;
+    if (!overlay || !full) return;
+    const ctx = overlay.getContext("2d");
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, SOURCE_W, SOURCE_H);
-    if (paperPngRef.current) {
-      ctx.drawImage(paperPngRef.current, 0, 0, SOURCE_W, SOURCE_H);
+    if (nameWipeRafRef.current !== null) {
+      cancelAnimationFrame(nameWipeRafRef.current);
+      nameWipeRafRef.current = null;
     }
 
-    const scaleX = SOURCE_W / W;
-    const scaleY = SOURCE_H / H;
-    const x = transform.x * scaleX;
-    const y = transform.y * scaleY;
-    const fontSize = transform.fontSize * scaleY;
+    const bounds = paperTextBoundsRef.current ?? { x: 0.13, y: 0.33, w: 0.74, h: 0.34 };
+    const startX = W * bounds.x;
+    const wipeWidth = W * bounds.w;
+    const featherPx = Math.max(24, wipeWidth * 0.08);
 
-    ctx.save();
-    ctx.fillStyle = transform.color;
-    ctx.font = transform.font.replace(/[\d.]+px/, fontSize + 'px');
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    ctx.clearRect(0, 0, W, H);
+    const startTime = performance.now();
 
-    if (transform.letterSpacing > 0.01 && name.length > 1) {
-      const chars = Array.from(name);
-      const widths = chars.map((c) => ctx.measureText(c).width);
-      const total = widths.reduce((a, b) => a + b, 0) + transform.letterSpacing * (chars.length - 1) * scaleX;
-      let cx = x - total / 2;
-      chars.forEach((char, idx) => {
-        ctx.fillText(char, cx + widths[idx] / 2, y);
-        cx += widths[idx] + transform.letterSpacing * scaleX;
-      });
-    } else {
-      ctx.fillText(name, x, y);
-    }
-    ctx.restore();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - startTime) / durationMs);
+      const eased = t * t * (3 - 2 * t);
+      const edgeX = startX + wipeWidth * eased;
 
-    const imageData = ctx.getImageData(0, 0, SOURCE_W, SOURCE_H);
-    lowResPaperData.current = new Uint8ClampedArray(imageData.data);
-    const alpha = new Uint8ClampedArray(SOURCE_W * SOURCE_H);
-    for (let i = 0; i < SOURCE_W * SOURCE_H; i++) {
-      alpha[i] = imageData.data[i * 4 + 3];
-    }
-    lowResPaperAlpha.current = alpha;
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(full, 0, 0);
 
-    if (lowResCompositeCanvas.current) {
-      const compCtx = lowResCompositeCanvas.current.getContext("2d");
-      if (compCtx) {
-        compCtx.clearRect(0, 0, SOURCE_W, SOURCE_H);
-        compCtx.drawImage(lrCanvas, 0, 0);
+      ctx.globalCompositeOperation = "destination-in";
+      const grad = ctx.createLinearGradient(edgeX - featherPx, 0, edgeX, 0);
+      grad.addColorStop(0, "rgba(0,0,0,0)");
+      grad.addColorStop(1, "rgba(0,0,0,1)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, edgeX, H);
+      ctx.globalCompositeOperation = "source-over";
+
+      if (t < 1) {
+        nameWipeRafRef.current = requestAnimationFrame(step);
+      } else {
+        nameWipeRafRef.current = null;
+      }
+    };
+
+    nameWipeRafRef.current = requestAnimationFrame(step);
+  };
+
+  // ─── NAME RENDER ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!nameLocked || !name || !paperReady) return;
+
+    const fontFamily = '"Segoe Print", "Bradley Hand", cursive';
+    const color = "rgba(20,17,15,0.94)";
+    const bounds = paperTextBoundsRef.current ?? { x: 0.13, y: 0.33, w: 0.74, h: 0.34 };
+    const maxLines = getMaxLinesForLength(name);
+
+    const lrCanvas = lowResPaperCanvas.current;
+    if (lrCanvas) {
+      const ctx = lrCanvas.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, SOURCE_W, SOURCE_H);
+        if (paperPngRef.current) {
+          ctx.drawImage(paperPngRef.current, 0, 0, SOURCE_W, SOURCE_H);
+        }
+
+        const maxW = SOURCE_W * bounds.w;
+        const maxH = SOURCE_H * bounds.h;
+        const cx = SOURCE_W * (bounds.x + bounds.w / 2);
+        const cy = SOURCE_H * (bounds.y + bounds.h / 2);
+        const fitted = fitNameMultiline(ctx, name, maxW, maxH, 22, fontFamily, maxLines);
+
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.font = `400 ${fitted.fontSize}px ${fontFamily}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const startY = cy - ((fitted.lines.length - 1) * fitted.lineHeight) / 2;
+        fitted.lines.forEach((line, i) =>
+          ctx.fillText(line, cx, startY + i * fitted.lineHeight)
+        );
+        ctx.restore();
+
+        const imageData = ctx.getImageData(0, 0, SOURCE_W, SOURCE_H);
+        lowResPaperData.current = new Uint8ClampedArray(imageData.data);
+        const alpha = new Uint8ClampedArray(SOURCE_W * SOURCE_H);
+        for (let i = 0; i < SOURCE_W * SOURCE_H; i++) {
+          alpha[i] = imageData.data[i * 4 + 3];
+        }
+        lowResPaperAlpha.current = alpha;
+
+        if (lowResCompositeCanvas.current) {
+          const compCtx = lowResCompositeCanvas.current.getContext("2d");
+          if (compCtx) {
+            compCtx.clearRect(0, 0, SOURCE_W, SOURCE_H);
+            compCtx.drawImage(lrCanvas, 0, 0);
+          }
+        }
       }
     }
+
+    if (!nameFullCanvasRef.current) {
+      nameFullCanvasRef.current = document.createElement("canvas");
+    }
+    const full = nameFullCanvasRef.current;
+    full.width = W;
+    full.height = H;
+    const fctx = full.getContext("2d");
+    if (fctx) {
+      fctx.clearRect(0, 0, W, H);
+
+      const maxW = W * bounds.w;
+      const maxH = H * bounds.h;
+      const cx = W * (bounds.x + bounds.w / 2);
+      const cy = H * (bounds.y + bounds.h / 2);
+      const fitted = fitNameMultiline(fctx, name, maxW, maxH, 90, fontFamily, maxLines);
+
+      fctx.save();
+      fctx.fillStyle = color;
+      fctx.font = `400 ${fitted.fontSize}px ${fontFamily}`;
+      fctx.textAlign = "center";
+      fctx.textBaseline = "middle";
+      const startY = cy - ((fitted.lines.length - 1) * fitted.lineHeight) / 2;
+      fitted.lines.forEach((line, i) =>
+        fctx.fillText(line, cx, startY + i * fitted.lineHeight)
+      );
+      fctx.restore();
+    }
+
+    const overlay = nameOverlayCanvasRef.current;
+    if (overlay) {
+      overlay.width = W;
+      overlay.height = H;
+    }
+    animateNameWipe(NAME_WIPE_DURATION_MS);
   }, [nameLocked, name, paperReady]);
 
-  // ─── COMPOSITOR INIT ───────────────────────────────────────────────
+  // ─── COMPOSITOR ─────────────────────────────────────────────────────
 
   const initCompositor = () => {
     if (compositorStarted.current) return;
     compositorStarted.current = true;
     compositorEnded.current = false;
     finalRenderPending.current = false;
-    console.log("BURN TRACE: initCompositor STARTED");
 
     const video = fireVideoRef.current;
     const burnCanvas = burnCanvasRef.current;
     const fireCanvas = fireCanvasRef.current;
-    const nameCanvas = nameBurnCanvasRef.current;
 
     if (!video || !burnCanvas || !fireCanvas) {
       compositorStarted.current = false;
@@ -531,10 +803,6 @@ export default function Scene01() {
 
     fireCanvas.width = W;
     fireCanvas.height = H;
-    if (nameCanvas) {
-      nameCanvas.width = W;
-      nameCanvas.height = H;
-    }
 
     sourceCanvas.current = document.createElement("canvas");
     sourceCanvas.current.width = SOURCE_W;
@@ -591,7 +859,6 @@ export default function Scene01() {
       }
 
       const progress = Math.max(0, Math.min(1, video.currentTime / duration));
-
       const timeChanged = Math.abs(video.currentTime - lastTime) > 0.005;
       if (timeChanged) lastTime = video.currentTime;
 
@@ -678,12 +945,6 @@ export default function Scene01() {
         video.ended;
 
       if (burnHasReachedEnd && !videoEndedRef.current) {
-        console.log("BURN TRACE: VIDEO REACHED END", {
-          progress: Number(progress.toFixed(4)),
-          currentTime: Number(video.currentTime.toFixed(3)),
-          duration: Number(duration.toFixed(3)),
-          videoEnded: video.ended,
-        });
         videoEndedRef.current = true;
         const mask = burnMask.current;
         const alphaArr = lowResPaperAlpha.current;
@@ -843,11 +1104,6 @@ export default function Scene01() {
       }
 
       if (finalRenderPending.current && !compositorEnded.current) {
-        console.log("BURN TRACE: FINAL RENDER -> freezing ash layer", {
-          finalRenderPending: finalRenderPending.current,
-          compositorEnded: compositorEnded.current,
-        });
-
         const ashCanvas = ashCanvasRef.current;
 
         if (ashCanvas) {
@@ -915,147 +1171,136 @@ export default function Scene01() {
     };
   };
 
-  // ─── START COMPOSITOR ────────────────────────────────────────────
-
   useEffect(() => {
     if (!burning) return;
     initCompositor();
   }, [burning]);
 
-  // ─── STAGE 2: WORLD CHANGE ──────────────────────────────────────
+  // ─── POST-BURN SEQUENCE ────────────────────────────────────────────
 
   useEffect(() => {
-    if (!paperBurned || worldChanged) return;
-    console.log("BURN TRACE: paperBurned=true -> scheduling worldChanged");
-    const timer = setTimeout(() => {
-      console.log("BURN TRACE: setWorldChanged(true)");
-      setWorldChanged(true);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [paperBurned, worldChanged]);
+    if (!paperBurned || postBurnStage !== "idle") return;
 
-  // ─── SOUND: BURN ENDS ───────────────────────────────────────────────
+    stopAudio(fireAudio.current, 700);
+    stopAudio(rainAudio.current, 700);
+    stopAudio(roomAudio.current, 700);
 
-  useEffect(() => {
-    if (!paperBurned) return;
-    const fire = fireAudio.current;
-    if (fire) fadeAudio(fire, 0, 3000);
-    
-    const rain = rainAudio.current;
-    if (rain) fadeAudio(rain, 0, 4000);
-  }, [paperBurned]);
-
-  // ─── SOUND: WORLD CHANGED (warm light + release) ────────────────────
+    const timer = trackedTimeout(() => {
+      setPostBurnStage("silence");
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [paperBurned, postBurnStage]);
 
   useEffect(() => {
-    if (!worldChanged) return;
-    
-    const rain = rainAudio.current;
-    const breathing = breathingAudio.current;
-    const fire = fireAudio.current;
-    const music = roomMusicAudio.current;
-    
-    if (rain) fadeAudio(rain, 0, 4500);
-    if (breathing) fadeAudio(breathing, 0.025, 4000);
-    if (fire) fadeAudio(fire, 0, 1400);
-    if (music) fadeAudio(music, 0.15, 5000);
+    if (postBurnStage !== "silence") return;
+    const timer = trackedTimeout(() => {
+      setPostBurnStage("breathing");
+    }, 1100);
+    return () => window.clearTimeout(timer);
+  }, [postBurnStage]);
 
-    const releaseTimer = window.setTimeout(() => {
-      const release = releaseAudio.current;
-      if (release) {
-        release.currentTime = 0;
-        release.volume = 0;
-        release.play().catch(() => {});
-        fadeAudio(release, 0.12, 1500);
-        setTimeout(() => {
-          fadeAudio(release, 0, 2000);
-        }, 3000);
+  useEffect(() => {
+    if (postBurnStage !== "breathing") return;
+
+    const phases: Array<"inhale" | "exhale"> = ["inhale", "exhale", "inhale", "exhale"];
+    const phaseDuration = 4000;
+    let phaseIndex = 0;
+    let cancelled = false;
+
+    const playBreath = () => {
+      if (cancelled) return;
+      if (phaseIndex >= phases.length) {
+        setBreathPhase(null);
+        setPostBurnStage("breathPause");
+        return;
       }
-    }, 1500);
+      const phase = phases[phaseIndex];
+      setBreathPhase(phase);
+      playOnce(phase === "inhale" ? inhaleAudio.current : exhaleAudio.current, 0.45);
+      phaseIndex++;
+      trackedTimeout(playBreath, phaseDuration);
+    };
 
-    return () => clearTimeout(releaseTimer);
-  }, [worldChanged]);
+    const startTimer = trackedTimeout(playBreath, 900);
 
-  // ─── POST-BURN SEQUENCE ─────────────────────────────────────────────
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startTimer);
+    };
+  }, [postBurnStage]);
 
   useEffect(() => {
-    if (!worldChanged || postBurnStage !== "idle") return;
-
-    const timer = window.setTimeout(() => {
-      console.log("SCENE01: setting postBurnStage to release", {
-        paperBurned,
-        worldChanged,
-        postBurnStage,
-        timestamp: new Date().toISOString(),
-      });
-      setReleased(true);
+    if (postBurnStage !== "breathPause") return;
+    const timer = trackedTimeout(() => {
       setPostBurnStage("release");
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [postBurnStage]);
+
+  useEffect(() => {
+    if (postBurnStage !== "release") return;
+
+    setWorldChanged(true);
+
+    const windTimer = trackedTimeout(() => {
+      const wind = subtleWindAudio.current;
+      if (wind) {
+        wind.loop = true;
+        wind.volume = 0;
+        wind.play().catch(() => {});
+        fadeAudio(wind, 0.045, 3500);
+      }
+    }, 400);
+
+    const ambienceTimer = trackedTimeout(() => {
+      const amb = releaseAmbienceAudio.current;
+      if (amb) {
+        amb.loop = true;
+        amb.volume = 0;
+        amb.play().catch(() => {});
+        fadeAudio(amb, 0.13, 4500);
+      }
+    }, 900);
+
+    let rayStep = 0;
+    const totalSteps = 80;
+    const rayInterval = trackedInterval(() => {
+      rayStep++;
+      const t = smoothstep(0, 1, rayStep / totalSteps);
+      setReleaseRaysOpacity(Math.min(0.17, t * 0.17));
+      setDustOpacity(Math.min(0.5, t * 0.1));
+      if (rayStep >= totalSteps) {
+        clearTrackedInterval(rayInterval);
+
+        fadeAudio(subtleWindAudio.current, 0, 3000);
+
+        trackedTimeout(() => {
+          setShowLetGoText(true);
+          trackedTimeout(() => {
+            setPostBurnStage("affirmation");
+          }, 2600);
+        }, 900);
+      }
+    }, 100);
+
+    return () => {
+      window.clearTimeout(windTimer);
+      window.clearTimeout(ambienceTimer);
+      clearTrackedInterval(rayInterval);
+    };
+  }, [postBurnStage]);
+
+  useEffect(() => {
+    if (postBurnStage !== "affirmation") return;
+
+    const timer = trackedTimeout(() => {
+      setPostBurnStage("memory");
     }, 9000);
 
     return () => window.clearTimeout(timer);
-  }, [worldChanged, postBurnStage]);
-
-  // ─── SOUND: RELEASE MESSAGE ─────────────────────────────────────────
-
-  useEffect(() => {
-    if (postBurnStage !== "release") return;
-    
-    const breathing = breathingAudio.current;
-    const music = roomMusicAudio.current;
-    
-    if (breathing) fadeAudio(breathing, 0.04, 3000);
-    if (music) fadeAudio(music, 0.18, 5000);
   }, [postBurnStage]);
 
-  useEffect(() => {
-    if (postBurnStage !== "release") return;
-
-    const timer = window.setTimeout(() => {
-      setAffirmationIndex(0);
-      setShowAffirmations(true);
-      setPostBurnStage("affirmation");
-    }, 7000);
-
-    return () => window.clearTimeout(timer);
-  }, [postBurnStage]);
-
-  // ─── SOUND: AFFIRMATIONS ─────────────────────────────────────────────
-
-  useEffect(() => {
-    if (postBurnStage !== "affirmation") return;
-    
-    const breathing = breathingAudio.current;
-    if (breathing) fadeAudio(breathing, 0.05, 4000);
-  }, [postBurnStage]);
-
-  useEffect(() => {
-    if (postBurnStage !== "affirmation") return;
-
-    let index = 0;
-    let promptTimer: number | null = null;
-
-    const timer = window.setInterval(() => {
-      if (index >= affirmations.length - 1) {
-        window.clearInterval(timer);
-
-        promptTimer = window.setTimeout(() => {
-          setShowAffirmations(false);
-          setShowMemoryPrompt(true);
-          setPostBurnStage("memory");
-        }, 6500);
-
-        return;
-      }
-
-      index += 1;
-      setAffirmationIndex(index);
-    }, 6500);
-
-    return () => {
-      window.clearInterval(timer);
-      if (promptTimer !== null) window.clearTimeout(promptTimer);
-    };
-  }, [postBurnStage]);
+  // ─── MEMORY PROMPT / CARD ──────────────────────────────────────────
 
   const openMemoryCard = () => {
     setShowMemoryPrompt(false);
@@ -1076,10 +1321,7 @@ export default function Scene01() {
     setPostBurnStage("card");
   };
 
-  // ─── CARD HANDLERS ──────────────────────────────────────────────────
-
   const handleSaveCard = () => {
-    // In a real implementation, this could trigger a download or print
     window.print();
   };
 
@@ -1089,16 +1331,44 @@ export default function Scene01() {
     setPostBurnStage("donation");
   };
 
+  useEffect(() => {
+    if (!name || postBurnStage !== "card") return;
+
+    const compute = () => {
+      const el = cardContentRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const maxW = rect.width * 0.88;
+      const maxH = rect.height * 0.32;
+      const maxLines = getMaxLinesForLength(name);
+      const size = measureNameFontSizeMultiline(
+        name,
+        maxW,
+        maxH,
+        56,
+        maxLines,
+        '"Segoe Print", "Bradley Hand", cursive'
+      );
+      setCardNameFontSize(size);
+    };
+
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, [name, postBurnStage]);
+
   // ─── RENDER ──────────────────────────────────────────────────────────
 
   return (
     <main className="scene">
-      <audio ref={rainAudio} src="/audio/rain.mp3" preload="auto" />
-      <audio ref={breathingAudio} src="/audio/breathing.mp3" preload="auto" />
-      <audio ref={roomMusicAudio} src="/audio/room-music.mp3" preload="auto" />
-      <audio ref={fireAudio} src="/audio/fire.mp3" preload="auto" />
-      <audio ref={releaseAudio} src="/audio/release.mp3" preload="auto" />
-      <audio ref={typingAudio} src="/audio/typing.mp3" preload="auto" />
+      <audio ref={rainAudio} src={`${AUDIO_BASE}/rain.mp3`} preload="auto" />
+      <audio ref={roomAudio} src={`${AUDIO_BASE}/room.mp3`} preload="auto" />
+      <audio ref={fireAudio} src={`${AUDIO_BASE}/fire.mp3`} preload="auto" />
+      <audio ref={clickAudio} src={`${AUDIO_BASE}/click.mp3`} preload="auto" />
+      <audio ref={inhaleAudio} src={`${AUDIO_BASE}/inhale.mp3`} preload="auto" />
+      <audio ref={exhaleAudio} src={`${AUDIO_BASE}/exhale.mp3`} preload="auto" />
+      <audio ref={subtleWindAudio} src={`${AUDIO_BASE}/subtle-wind.mp3`} preload="auto" />
+      <audio ref={releaseAmbienceAudio} src={`${AUDIO_BASE}/release-ambience.mp3`} preload="auto" />
 
       <motion.div
         ref={sceneCameraRef}
@@ -1107,229 +1377,380 @@ export default function Scene01() {
         animate={{ scale: cameraTarget.scale, x: cameraTarget.x, y: cameraTarget.y }}
         transition={{ duration: started ? 5 : 12, ease: [0.22, 1, 0.36, 1] }}
       >
-        <motion.img
-          src="/assets/scene-01/person.png"
-          className="layer person-breathing"
-          alt=""
-          animate={{ scaleY: [1, 1.007, 1] }}
-          transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-        />
-
-        {staticLayers.map((layer) => (
-          <motion.img
-            key={layer}
-            src={`/assets/scene-01/${layer}`}
-            className="layer"
-            alt=""
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0 }}
-          />
-        ))}
-
-        {/* ─── CENTERED NAME (appears on the paper) ─── */}
-        {nameLocked && !paperBurned && (
-          <motion.div
-            ref={nameBurnRef}
-            className="locked-name"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: burning ? 0 : 1, scale: 1 }}
-            transition={{ duration: 1, ease: "easeOut" }}
-          >
-            {name}
-          </motion.div>
-        )}
-
-        <canvas
-          ref={burnCanvasRef}
-          className={`burn-paper-canvas ${paperReady ? "burn-paper-canvas--active" : ""}`}
-          aria-hidden="true"
-        />
-
-        <canvas
-          ref={ashCanvasRef}
-          className={`burn-ash-canvas ${paperBurned ? "burn-ash-canvas--visible" : ""}`}
-          aria-hidden="true"
-        />
-
-        <canvas
-          ref={nameBurnCanvasRef}
-          className={`burn-name-canvas ${burning && !paperBurned ? "burn-name-canvas--active" : ""}`}
-          aria-hidden="true"
-        />
-
-        <div className="burn-fire-window" aria-hidden="true">
-          <canvas
-            ref={fireCanvasRef}
-            className="burn-fire-canvas burn-fire-canvas--active"
-          />
-          <video
-            ref={fireVideoRef}
-            className="burn-fire-source"
-            src="/assets/scene-01/fire-sources.mp4"
-            muted
-            playsInline
-            preload="auto"
-          />
-        </div>
-
-        {/* ─── LAMP GLOW (with flicker) ─── */}
         <motion.div
-          className="lamp-glow"
-          animate={{
-            opacity: flicker ? [0.8, 0.2, 0.8] : (worldChanged ? [0.5, 0.56, 0.5] : [0.48, 0.5, 0.48]),
-            scale: flicker ? [1.05, 0.95, 1.05] : (worldChanged ? [1.02, 1.03, 1.02] : [1.03, 1.02, 1.03]),
-          }}
-          transition={{
-            duration: flicker ? 0.3 : (worldChanged ? 6.5 : 30),
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
-        <motion.img
-          src="/assets/scene-01/curtain.png"
-          className="layer curtain"
-          alt=""
-          animate={{
-            x: worldChanged ? [0, 8, -4, 6, 0] : [0, 0, -2, 0, 0],
-            rotate: worldChanged ? [0, 0.12, -0.08, 0.12, 0] : [0, 0.5, -0.3, 0.4, 0],
-          }}
-          transition={{ duration: worldChanged ? 22 : 15, repeat: Infinity, ease: "easeInOut" }}
-        />
-
-        <video
-          className={`steam-video ${worldChanged ? "steam-video--warm" : ""}`}
-          src="/assets/scene-01/steam.mp4"
-          autoPlay
-          loop
-          muted
-          playsInline
-        />
-
-        <motion.div
-          className="rain"
-          animate={{ opacity: worldChanged ? 0 : 1 }}
-          transition={{ duration: 3, ease: "easeInOut" }}
+          className="breath-scale-wrapper"
+          animate={
+            postBurnStage === "breathing"
+              ? { scale: breathPhase === "inhale" ? 1.004 : 1 }
+              : { scale: 1 }
+          }
+          transition={{ duration: 4, ease: "easeInOut" }}
         >
-          {rainDrops.map((drop, i) => (
-            <span
-              key={i}
-              className="raindrop"
-              style={{
-                left: `${drop.left}%`,
-                top: `${drop.top}%`,
-                height: `${drop.length}px`,
-                opacity: drop.opacity,
-                animationDelay: `${drop.delay}s`,
-                animationDuration: `${drop.duration}s`,
-              }}
+          <motion.img
+            src={`${ASSET_BASE}/PERSON.png`}
+            className="layer person-breathing"
+            alt=""
+            animate={{ scaleY: [1, 1.007, 1] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+          />
+
+          {staticLayers.map((layer) => (
+            <motion.img
+              key={layer}
+              src={`${ASSET_BASE}/${layer}`}
+              className="layer"
+              alt=""
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0 }}
             />
           ))}
-        </motion.div>
 
-        <div className="film-grain" />
+          <canvas
+            ref={burnCanvasRef}
+            className={`burn-paper-canvas ${paperReady ? "burn-paper-canvas--active" : ""}`}
+            aria-hidden="true"
+          />
 
-        {worldChanged && (
-          <>
+          <canvas
+            ref={nameOverlayCanvasRef}
+            className="name-overlay-canvas"
+            aria-hidden="true"
+          />
+
+          <canvas
+            ref={ashCanvasRef}
+            className={`burn-ash-canvas ${paperBurned ? "burn-ash-canvas--visible" : ""}`}
+            aria-hidden="true"
+          />
+
+          <div className="burn-fire-window" aria-hidden="true">
+            <canvas
+              ref={fireCanvasRef}
+              className="burn-fire-canvas burn-fire-canvas--active"
+            />
+            <video
+              ref={fireVideoRef}
+              className="burn-fire-source"
+              src={`${ASSET_BASE}/fire-sources.mp4`}
+              muted
+              playsInline
+              preload="auto"
+            />
+          </div>
+
+          {/* ─── ASH WARM GLOW ─── */}
+          {paperBurned && (
             <motion.div
-              className="window-daylight"
-              initial={{ opacity: 0, scale: 0.82 }}
-              animate={{ opacity: [0.85, 0.78, 0.85], scale: [1, 1.008, 1] }}
-              transition={{
-                duration: 8,
-                delay: 1.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+              className="ash-warm-glow"
+              style={{ opacity: releaseRaysOpacity > 0 ? Math.min(1, releaseRaysOpacity / 0.17) : 0 }}
               aria-hidden="true"
             />
+          )}
+
+          {/* ─── LAMP GLOW ─── */}
+          <motion.div
+            className="lamp-glow"
+            animate={{
+              opacity: flicker ? [0.8, 0.2, 0.8] : (worldChanged ? [0.5, 0.56, 0.5] : [0.48, 0.5, 0.48]),
+              scale: flicker ? [1.05, 0.95, 1.05] : (worldChanged ? [1.02, 1.03, 1.02] : [1.03, 1.02, 1.03]),
+            }}
+            transition={{
+              duration: flicker ? 0.3 : (worldChanged ? 6.5 : 30),
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+
+          {/* ─── CURTAIN ─── */}
+          <motion.img
+            src={`${ASSET_BASE}/CURTAIN.png`}
+            className="layer curtain"
+            alt=""
+            animate={
+              postBurnStage === "breathing"
+                ? { x: breathPhase === "inhale" ? [0, 3] : [3, 0], rotate: breathPhase === "inhale" ? [0, 0.15] : [0.15, 0] }
+                : worldChanged
+                ? { x: [0, 9, -4, 6, 0], rotate: [0, 0.14, -0.08, 0.12, 0] }
+                : { x: [0, 0, -2, 0, 0], rotate: [0, 0.5, -0.3, 0.4, 0] }
+            }
+            transition={
+              postBurnStage === "breathing"
+                ? { duration: 2, ease: "easeInOut" }
+                : { duration: worldChanged ? 22 : 15, repeat: Infinity, ease: "easeInOut" }
+            }
+          />
+
+          <video
+            className={`steam-video ${worldChanged ? "steam-video--warm" : ""}`}
+            src={`${ASSET_BASE}/steam.mp4`}
+            autoPlay
+            loop
+            muted
+            playsInline
+          />
+
+          <motion.div
+            className="rain"
+            animate={{ opacity: paperBurned ? 0 : 1 }}
+            transition={{ duration: 2, ease: "easeInOut" }}
+          >
+            {rainDrops.map((drop, i) => (
+              <span
+                key={i}
+                className="raindrop"
+                style={{
+                  left: `${drop.left}%`,
+                  top: `${drop.top}%`,
+                  height: `${drop.length}px`,
+                  opacity: drop.opacity,
+                  animationDelay: `${drop.delay}s`,
+                  animationDuration: `${drop.duration}s`,
+                }}
+              />
+            ))}
+          </motion.div>
+
+          <div className="film-grain" />
+
+          {/* ─── RELEASE RAYS & DUST ────────────────────────────────── */}
+          {(postBurnStage === "release" ||
+            postBurnStage === "memory" ||
+            postBurnStage === "checkout" ||
+            postBurnStage === "card" ||
+            postBurnStage === "donation" ||
+            postBurnStage === "final") && (
+            <>
+              <motion.img
+                src={`${ASSET_BASE}/release/release-rays.png`}
+                className="release-rays"
+                style={{
+                  opacity: releaseRaysOpacity,
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: "1672px",
+                  height: "941px",
+                  objectFit: "cover",
+                  pointerEvents: "none",
+                  zIndex: 35,
+                }}
+                initial={{ scale: 1, x: 0, y: 0 }}
+                animate={{
+                  scale: [1, 1.02, 1.01, 1.03, 1],
+                  x: [0, 2, -1, 1, 0],
+                  y: [0, -1, 1, 0, 0],
+                }}
+                transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <motion.img
+                src={`${ASSET_BASE}/release/release-dust.png`}
+                className="release-dust"
+                style={{
+                  opacity: dustOpacity,
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: "1672px",
+                  height: "941px",
+                  objectFit: "cover",
+                  pointerEvents: "none",
+                  zIndex: 36,
+                }}
+                animate={{ x: [0, 3, -2, 1, 0], y: [0, -1, 2, 0, 0] }}
+                transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
+              />
+            </>
+          )}
+
+          {/* ─── WARM LIGHT OVERLAY ────────────────────────────────── */}
+          {worldChanged && (
             <motion.div
-              className="sun-rays"
-              initial={{ opacity: 0, x: -18 }}
-              animate={{ opacity: [0.85, 0.78, 0.85], x: 0 }}
-              transition={{
-                opacity: { duration: 8, delay: 0.7, repeat: Infinity, ease: "easeInOut" },
-                x: { duration: 8, delay: 0.7, ease: "easeOut" },
-              }}
-              aria-hidden="true"
-            >
-              <span className="sun-ray sun-ray-1" />
-              <span className="sun-ray sun-ray-2" />
-              <span className="sun-ray sun-ray-3" />
-            </motion.div>
-            <motion.div
-              className="sunlight-patch"
-              initial={{ opacity: 0, scale: 0.72, x: -20 }}
-              animate={{ opacity: [0.38, 0.34, 0.38], scale: [1, 1.006, 1] }}
-              transition={{
-                duration: 8,
-                delay: 2.2,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              aria-hidden="true"
-            />
-            <motion.div
-              className="room-warmth"
+              className="room-warmth-overlay"
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0.38, 0.34, 0.38] }}
-              transition={{ duration: 8, delay: 4, repeat: Infinity, ease: "easeInOut" }}
-              aria-hidden="true"
+              animate={{ opacity: [0, 0.15, 0.12, 0.18, 0.14] }}
+              transition={{ duration: 12, ease: "easeOut" }}
             />
-          </>
+          )}
+
+          {worldChanged && (
+            <>
+              <motion.div
+                className="window-daylight"
+                initial={{ opacity: 0, scale: 0.82 }}
+                animate={{ opacity: [0.85, 0.78, 0.85], scale: [1, 1.008, 1] }}
+                transition={{
+                  duration: 8,
+                  delay: 1.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                aria-hidden="true"
+              />
+              <motion.div
+                className="sun-rays"
+                initial={{ opacity: 0, x: -18 }}
+                animate={{ opacity: [0.85, 0.78, 0.85], x: 0 }}
+                transition={{
+                  opacity: { duration: 8, delay: 0.7, repeat: Infinity, ease: "easeInOut" },
+                  x: { duration: 8, delay: 0.7, ease: "easeOut" },
+                }}
+                aria-hidden="true"
+              >
+                <span className="sun-ray sun-ray-1" />
+                <span className="sun-ray sun-ray-2" />
+                <span className="sun-ray sun-ray-3" />
+              </motion.div>
+              <motion.div
+                className="sunlight-patch"
+                initial={{ opacity: 0, scale: 0.72, x: -20 }}
+                animate={{ opacity: [0.38, 0.34, 0.38], scale: [1, 1.006, 1] }}
+                transition={{
+                  duration: 8,
+                  delay: 2.2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                aria-hidden="true"
+              />
+              <motion.div
+                className="room-warmth"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0.38, 0.34, 0.38] }}
+                transition={{ duration: 8, delay: 4, repeat: Infinity, ease: "easeInOut" }}
+                aria-hidden="true"
+              />
+            </>
+          )}
+        </motion.div>
+      </motion.div>
+
+      {/* ─── IMMERSION GUIDE ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {!guideDismissed && !started && (
+          <motion.div
+            className="immersion-guide"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+            onPointerDown={() => {
+              setGuideDismissed(true);
+              playOnce(clickAudio.current, 0.15);
+            }}
+          >
+            <div className="immersion-guide-content">
+              <p className="guide-eyebrow">BEFORE YOU BEGIN</p>
+              <h2 className="guide-title">IMMERSE YOURSELF</h2>
+              <div className="guide-divider" />
+
+              <ul className="guide-list">
+                <li className="guide-item">
+                  <span className="guide-icon">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                      <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                    </svg>
+                  </span>
+                  <span>Use headphones for a richer, more intimate experience.</span>
+                </li>
+
+                <li className="guide-item">
+                  <span className="guide-icon">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                      <path d="M12 2v4M12 22v-4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M22 12h-4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                  </span>
+                  <span>Follow the text as it appears — let it guide your focus.</span>
+                </li>
+
+                <li className="guide-item">
+                  <span className="guide-icon">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                      <path d="M2 10v4M6 6v12M10 8v8M14 4v16M18 6v12M22 10v4" />
+                    </svg>
+                  </span>
+                  <span>Attune to the surrounding audio scene. Let it hold you.</span>
+                </li>
+
+                <li className="guide-item">
+                  <span className="guide-icon">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                    </svg>
+                  </span>
+                  <span>Bring your emotions exactly as they are.</span>
+                </li>
+
+                <li className="guide-item">
+                  <span className="guide-icon">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                  </span>
+                  <span>There is no rush. Take your time.</span>
+                </li>
+              </ul>
+
+              <p className="guide-all-the-best">All the best.</p>
+              <p className="guide-dismiss">(tap anywhere to continue)</p>
+            </div>
+          </motion.div>
         )}
-      </motion.div>
+      </AnimatePresence>
 
-      {/* ─── BEGIN OVERLAY ──────────────────────────────────────────── */}
-      <motion.div
-        className="begin-container"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: introFinished && !started ? 1 : 0 }}
-      >
-        <div className="begin-scrim" />
-        <motion.p
-          className="begin-title"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 2, delay: 0.3 }}
-        >
-          LET GO
-        </motion.p>
-        <motion.div
-          className="begin-divider"
-          initial={{ opacity: 0, scaleX: 0 }}
-          animate={{ opacity: 1, scaleX: 1 }}
-          transition={{ duration: 1.2, delay: 1.6 }}
-        />
-        <motion.p
-          className="begin-subtitle"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 2, delay: 2.4 }}
-        >
-          Some things are easier to release than to keep carrying.
-        </motion.p>
-        <motion.button
-          className="begin-button"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1.5, delay: 4.4 }}
-          onClick={() => {
-            toggleFullscreen();
-            setStarted(true);
-            startRoomAudio();
-          }}
-        >
-          BEGIN
-        </motion.button>
-      </motion.div>
+      {/* ─── RITUAL BEGIN OVERLAY ────────────────────────────────────── */}
+      <AnimatePresence>
+        {introFinished && !showPaper && !nameLocked && !started && (
+          <motion.div
+            className="begin-container"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 2, ease: "easeOut" }}
+          >
+            <div className="begin-scrim" />
+            <motion.p
+              className="begin-title"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 2, delay: 0.3 }}
+            >
+              LET GO
+            </motion.p>
+            <motion.div
+              className="begin-divider"
+              initial={{ opacity: 0, scaleX: 0 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              transition={{ duration: 1.2, delay: 1.6 }}
+            />
+            <motion.p
+              className="begin-subtitle"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 2, delay: 2.4 }}
+            >
+              Some things are easier to release than to keep carrying.
+            </motion.p>
+            <motion.button
+              className="begin-button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1.5, delay: 4.4 }}
+              onClick={handleBeginRitual}
+            >
+              BEGIN
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ─── PAPER INSTRUCTION (input and prompt) ──────────────────── */}
+      {/* ─── PAPER INSTRUCTION ───────────────────────────────────────── */}
       <motion.div
         className="paper-instruction"
         initial={{ opacity: 0 }}
-        animate={{ opacity: started && !paperBurned ? 1 : 0 }}
-        transition={{ delay: 4.5, duration: 2 }}
+        animate={{ opacity: showPaper && !paperBurned ? 1 : 0 }}
+        transition={{ delay: showPaper ? 4.5 : 0, duration: 2 }}
       >
         {!nameLocked && (
           <>
@@ -1339,12 +1760,13 @@ export default function Scene01() {
               type="text"
               placeholder="write their name..."
               autoComplete="off"
-              maxLength={40}
+              maxLength={70}
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && name.trim() !== "") {
                   setNameLocked(true);
+                  playOnce(clickAudio.current, 0.2);
                 }
               }}
             />
@@ -1352,145 +1774,240 @@ export default function Scene01() {
         )}
       </motion.div>
 
-      {/* ─── RELEASE MESSAGE ────────────────────────────────────────── */}
-      <motion.div
-        className="release-message"
-        initial={{ opacity: 0 }}
-        animate={{
-          opacity: postBurnStage === "release" ? 1 : 0,
-        }}
-        transition={{ duration: 2.5, ease: "easeOut" }}
-      >
-        <div className="breathing-text">
-          <p>You let it go.</p>
-          <p className="release-breath">Take a breath.</p>
-        </div>
-      </motion.div>
+      {/* ─── BREATHING PHASE ────────────────────────────────────────── */}
+      {postBurnStage === "breathing" && breathPhase && (
+        <motion.div
+          className="breathing-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 4 }}
+        >
+          <p className="breath-label">
+            {breathPhase === "inhale" ? "INHALE" : "EXHALE"}
+            <span className="breath-sub">{breathPhase === "inhale" ? "吸う" : "吐く"}</span>
+          </p>
+        </motion.div>
+      )}
 
-      {/* ─── AFFIRMATIONS ────────────────────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {postBurnStage === "affirmation" && (
+      {/* ─── AFFIRMATION PHASE ────────────────────────────────────────── */}
+      {postBurnStage === "affirmation" && (
+        <motion.div
+          className="affirmation-sequence"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 4 }}
+        >
+          <div className="affirmation-line">
+            <span className="affirmation-en">You can put it down now.</span>
+            <span className="affirmation-jp">もう、手放していい。</span>
+          </div>
+          <div className="affirmation-line">
+            <span className="affirmation-en">You don't have to carry it anymore.</span>
+            <span className="affirmation-jp">もう、抱えていかなくていい。</span>
+          </div>
+          <div className="affirmation-line">
+            <span className="affirmation-en">What happened can stay in the past.</span>
+            <span className="affirmation-jp">起きたことは、過去に置いていい。</span>
+          </div>
+          <div className="affirmation-line">
+            <span className="affirmation-en">You are free to move forward.</span>
+            <span className="affirmation-jp">これから先へ、進んでいい。</span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ─── LET GO TEXT ───────────────────────────────────────────── */}
+      {showLetGoText && postBurnStage === "release" && (
+        <motion.div
+          className="let-go-text-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 2.4, ease: "easeOut" }}
+        >
+          <p className="let-go-text">LET GO</p>
+          <p className="let-go-sub">手放す</p>
+        </motion.div>
+      )}
+
+      {/* ─── MEMORY PROMPT ───────────────────────────────────────────── */}
+      <AnimatePresence>
+        {postBurnStage === "memory" && (
           <motion.div
-            key={`affirmation-${affirmationIndex}`}
-            className="affirmation-sequence"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 1.8, ease: [0.22, 1, 0.36, 1] }}
+            className="memory-prompt"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.8, ease: "easeOut" }}
           >
-            <p className="breathing-text">{affirmations[affirmationIndex]}</p>
-            <span className="affirmation-mark">—</span>
+            <div className="memory-prompt-content">
+              <p className="memory-prompt-title">Would you like to preserve this moment?</p>
+              <p className="memory-prompt-subtitle">Keep a small reminder of what you chose to release.</p>
+              <div className="memory-prompt-actions">
+                <button className="memory-prompt-btn primary" onClick={() => { openMemoryCard(); playOnce(clickAudio.current, 0.2); }}>
+                  YES
+                </button>
+                <button className="memory-prompt-btn secondary" onClick={() => { skipMemoryCard(); playOnce(clickAudio.current, 0.2); }}>
+                  NO
+                </button>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ─── MEMORY PROMPT ───────────────────────────────────────────── */}
-{/* ─── MEMORY PROMPT ───────────────────────────────────────────── */}
-<AnimatePresence>
-  {postBurnStage === "memory" && (
-    <motion.div
-      className="memory-prompt"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 1.8, ease: "easeOut" }}
-    >
-      <div className="memory-prompt-content">
-        <p className="memory-prompt-title">Would you like to preserve this moment?</p>
-        <p className="memory-prompt-subtitle">Keep a small reminder of what you chose to release.</p>
-        <div className="memory-prompt-actions">
-          <button className="memory-prompt-btn primary" onClick={openMemoryCard}>YES</button>
-          <button className="memory-prompt-btn secondary" onClick={skipMemoryCard}>NO</button>
-        </div>
-      </div>
-    </motion.div>
-  )}
-</AnimatePresence>
 
       {/* ─── CHECKOUT ──────────────────────────────────────────────────── */}
       <AnimatePresence>
         {postBurnStage === "checkout" && (
-          <motion.div
-            className="card-checkout"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 1.35, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <span className="card-checkout-eyebrow">A SMALL KEEPSAKE</span>
-            <p className="card-checkout-title">Keep a piece of this moment.</p>
-            <p className="card-checkout-copy">
-              A personalized LET GO card with their name
-              and the date you chose to let go.
-            </p>
-            <div className="card-price">₹5</div>
-            <button className="card-payment-button" onClick={handleCardPayment}>
-              CREATE MY CARD — ₹5
-            </button>
-            <button className="card-payment-later" onClick={skipMemoryCard}>
-              NOT NOW
-            </button>
-          </motion.div>
+          <div className="card-checkout-stage">
+            <motion.div
+              className="card-checkout"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 1.35, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <span className="card-checkout-eyebrow">A SMALL KEEPSAKE</span>
+              <p className="card-checkout-title">Keep a piece of this moment.</p>
+              <p className="card-checkout-copy">
+                A personalized LET GO card with their name
+                and the date you chose to let go.
+              </p>
+              <div className="card-price">₹5</div>
+              <button className="card-payment-button" onClick={() => { handleCardPayment(); playOnce(clickAudio.current, 0.2); }}>
+                CREATE MY CARD — ₹5
+              </button>
+              <button className="card-payment-later" onClick={() => { skipMemoryCard(); playOnce(clickAudio.current, 0.2); }}>
+                NOT NOW
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
       {/* ─── PERSONALIZED KEEPSAKE CARD ────────────────────────────────── */}
+      {postBurnStage === "card" && (
+        <>
+          <motion.div
+            className="card-stage-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.8, ease: "easeOut" }}
+          />
+          <div className="keepsake-card-stage">
+            <motion.div
+              className="keepsake-card"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 2.2, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="card-paper-texture" aria-hidden="true" />
+              <div className="card-inner-frame" aria-hidden="true" />
 
-      {/* ─── PERSONALIZED KEEPSAKE CARD ────────────────────────────────── */}
-{postBurnStage === "card" && (
-  <>
-    {/* Cinematic overlay */}
-    <motion.div
-      className="card-stage-overlay"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 1.6, ease: "easeOut" }}
-    />
-    {/* The keepsake card */}
-    <motion.div
-      className="keepsake-card"
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 2, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <div className="card-texture" />
-      <div className="card-inner">
-        {/* Decorative top ornament */}
-        <div className="card-ornament top">
-          <span className="ornament-line" />
-          <span className="ornament-leaf" />
-          <span className="ornament-leaf" />
-          <span className="ornament-line" />
-        </div>
-        <p className="card-kicker">A MOMENT RELEASED</p>
-        <h2 className="card-title">LET GO</h2>
-        <div className="card-divider" />
-        <p className="card-subtitle">You released</p>
-        <p className="card-handwritten-name">{name}</p>
-        <p className="card-date">
-          {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
-        </p>
-        <p className="card-quote">You chose to let go.</p>
-        {/* Decorative bottom ornament / landscape hint */}
-        <div className="card-ornament bottom">
-          <span className="ornament-line" />
-          <span className="ornament-leaf" />
-          <span className="ornament-leaf" />
-          <span className="ornament-line" />
-        </div>
-        <div className="card-actions">
-          <button className="card-action-save" onClick={handleSaveCard}>
-            SAVE MY CARD
-          </button>
-          <button className="card-action-continue" onClick={handleCardContinue}>
-            CONTINUE
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  </>
-)}
-   
+              <motion.img
+                src={`${ASSET_BASE}/card/botanical.png`}
+                className="card-botanical card-botanical-top"
+                alt=""
+                aria-hidden="true"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.80 }}
+                transition={{ duration: 1.6, delay: 1.0 }}
+              />
+
+              <div className="card-content" ref={cardContentRef}>
+                <motion.p
+                  className="card-kicker"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 1.3, delay: 1.2 }}
+                >
+                  A MOMENT RELEASED
+                </motion.p>
+
+                <motion.img
+                  src={`${ASSET_BASE}/card/ornament.png`}
+                  className="card-ornament-img"
+                  alt=""
+                  aria-hidden="true"
+                  initial={{ opacity: 0, scaleX: 0.6 }}
+                  animate={{ opacity: 20, scaleX: 2 }}
+                  transition={{ duration: 1.2, delay: 1.4 }}
+                />
+
+                <motion.h2
+                  className="card-title"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 1.6, delay: 1.6 }}
+                >
+                  <span className="card-title-en">LET GO</span>
+                  <span className="card-title-jp">手放す</span>
+                </motion.h2>
+
+                <motion.div
+                  className="card-body"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 1.6, delay: 2.0 }}
+                >
+                  <p className="card-subtitle">You released</p>
+                  <p className="card-handwritten-name" style={{ fontSize: `${cardNameFontSize}px` }}>{name}</p>
+                  <p className="card-date">
+                    {new Date()
+                      .toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+                      .toUpperCase()}
+                  </p>
+                  <p className="card-quote">You chose to let go.</p>
+                </motion.div>
+              </div>
+
+              <motion.img
+                src={`${ASSET_BASE}/card/landscape.png`}
+                className="card-landscape"
+                alt=""
+                aria-hidden="true"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.9 }}
+                transition={{ duration: 2, delay: 2.2 }}
+              />
+
+              <motion.img
+                src={`${ASSET_BASE}/card/botanical-bottom.png`}
+                className="card-botanical card-botanical-bottom"
+                alt=""
+                aria-hidden="true"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.8 }}
+                transition={{ duration: 1.6, delay: 2.3 }}
+              />
+
+              <motion.div
+                className="card-actions"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1.3, delay: 2.5 }}
+              >
+                <button
+                  className="card-action-save"
+                  aria-label="Save my card"
+                  onClick={() => { handleSaveCard(); playOnce(clickAudio.current, 0.2); }}
+                >
+                  SAVE MY CARD
+                </button>
+                <button
+                  className="card-action-continue"
+                  aria-label="Continue"
+                  onClick={() => { handleCardContinue(); playOnce(clickAudio.current, 0.2); }}
+                >
+                  CONTINUE
+                </button>
+              </motion.div>
+            </motion.div>
+          </div>
+        </>
+      )}
+
       {/* ─── DONATION ──────────────────────────────────────────────────── */}
       {postBurnStage === "donation" && (
         <motion.div
@@ -1503,16 +2020,12 @@ export default function Scene01() {
             <span className="donation-eyebrow">KEEP LET GO ALIVE</span>
             <p className="donation-title">If this moment helped you breathe a little easier, you can help keep LET GO here for someone else.</p>
             <p className="donation-note">Completely optional. The experience remains yours either way.</p>
-            <button className="donation-primary-button" onClick={() => {
-              setShowDonation(false);
-              setShowFinalExit(true);
-              setPostBurnStage("final");
-            }}>SUPPORT LET GO</button>
-            <button className="donation-secondary-button" onClick={() => {
-              setShowDonation(false);
-              setShowFinalExit(true);
-              setPostBurnStage("final");
-            }}>NOT NOW</button>
+            <button className="donation-primary-button" onClick={() => { setShowDonation(false); setShowFinalExit(true); setPostBurnStage("final"); playOnce(clickAudio.current, 0.2); }}>
+              SUPPORT LET GO
+            </button>
+            <button className="donation-secondary-button" onClick={() => { setShowDonation(false); setShowFinalExit(true); setPostBurnStage("final"); playOnce(clickAudio.current, 0.2); }}>
+              NOT NOW
+            </button>
           </div>
         </motion.div>
       )}
@@ -1526,7 +2039,9 @@ export default function Scene01() {
           transition={{ duration: 2.5 }}
         >
           <p>You can come back whenever you need to let something go.</p>
-          <button onClick={() => window.location.reload()}>RETURN</button>
+          <button onClick={() => { window.location.reload(); playOnce(clickAudio.current, 0.2); }}>
+            RETURN
+          </button>
         </motion.div>
       )}
     </main>

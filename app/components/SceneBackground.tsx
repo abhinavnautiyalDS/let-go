@@ -23,7 +23,6 @@ export default function SceneBackground() {
   return (
     <div className="scene-background-container">
       <div className="scene-camera">
-        {/* Person breathing */}
         <motion.img
           src="/assets/scene-01/person.png"
           className="layer person-breathing"

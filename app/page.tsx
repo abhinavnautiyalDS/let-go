@@ -1,5 +1,8 @@
-import SceneBackground from '@/app/components/SceneBackground';
+'use client';
+
+import { motion } from 'framer-motion';
 import Link from 'next/link';
+import SceneBackground from '@/app/components/SceneBackground';
 
 export default function HomePage() {
   return (
@@ -9,35 +12,118 @@ export default function HomePage() {
       </div>
 
       <div className="home-content">
-        <h1 className="hero-title">LET GO</h1>
-        <p className="hero-subtitle">How it works in 3 steps</p>
-        <p className="hero-tagline">
-          release a memory, person<br />
-          or feeling you're ready<br />
-          to stop carrying.
-        </p>
+        {/* ─── HERO ────────────────────────────────────────────── */}
+        <motion.h1
+          className="hero-title"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 2, delay: 0.3, ease: 'easeOut' }}
+        >
+          LET GO
+        </motion.h1>
 
-        <div className="steps-container">
-          <div className="step">
-            <span className="step-number">1</span>
-            <h3>Write</h3>
-            <p>The name you're ready to let go of.</p>
-          </div>
-          <div className="step">
-            <span className="step-number">2</span>
-            <h3>Burn</h3>
-            <p>Watch the paper burn and the name disappear.</p>
-          </div>
-          <div className="step">
-            <span className="step-number">3</span>
-            <h3>Release</h3>
-            <p>Leave it behind and move forward lighter.</p>
-          </div>
-        </div>
+        <motion.p
+          className="hero-japanese"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.8, delay: 1.0, ease: 'easeOut' }}
+        >
+          手放す — Tehanasu
+        </motion.p>
 
-        <Link href="/ritual" className="begin-hero">
-          BEGIN
-        </Link>
+        <motion.div
+          className="hero-divider"
+          initial={{ opacity: 0, scaleX: 0 }}
+          animate={{ opacity: 1, scaleX: 1 }}
+          transition={{ duration: 1.2, delay: 1.6, ease: 'easeOut' }}
+        />
+
+        <motion.p
+          className="hero-subtitle"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.5, delay: 2.2, ease: 'easeOut' }}
+        >
+          An ancient ritual of release.
+        </motion.p>
+
+        <motion.p
+          className="hero-tagline"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.5, delay: 2.8, ease: 'easeOut' }}
+        >
+          Write. Burn. Let go.<br />
+          In three quiet steps, release<br />
+          what no longer belongs to you.
+        </motion.p>
+
+        {/* ─── STEPS ────────────────────────────────────────────── */}
+        <motion.div
+          className="steps-container"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.5, delay: 3.5, ease: 'easeOut' }}
+        >
+          <div className="step">
+            <div className="step-circle">1</div>
+            <div className="step-content">
+              <h3>Write <span className="step-jp">— Kotodama</span></h3>
+              <p>Write the name you're ready to release.</p>
+            </div>
+          </div>
+
+          <div className="step-divider" />
+
+          <div className="step">
+            <div className="step-circle">2</div>
+            <div className="step-content">
+              <h3>Burn <span className="step-jp">— Keshō</span></h3>
+              <p>Watch the paper burn. The name becomes ash.</p>
+            </div>
+          </div>
+
+          <div className="step-divider" />
+
+          <div className="step">
+            <div className="step-circle">3</div>
+            <div className="step-content">
+              <h3>Release <span className="step-jp">— Tehanasu</span></h3>
+              <p>Leave it behind. The room warms. You are lighter.</p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ─── BEGIN BUTTON ────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.5, delay: 4.8, ease: 'easeOut' }}
+        >
+          <Link href="/ritual" className="begin-hero">
+            BEGIN THE RITUAL
+          </Link>
+        </motion.div>
+
+        {/* ─── PHILOSOPHICAL FOOTER ───────────────────────────── */}
+        <motion.p
+          className="hero-philosophy"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 2, delay: 5.5, ease: 'easeOut' }}
+        >
+          物の哀れ — <span className="philosophy-en">Mono no aware: the gentle sadness of things passing.</span>
+        </motion.p>
+
+        {/* ─── SCROLL HINT ─────────────────────────────────────── */}
+        <motion.div
+          className="scroll-hint"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 2, delay: 6.5, ease: 'easeOut' }}
+        >
+          <span>Scroll to explore</span>
+        </motion.div>
       </div>
     </main>
   );
