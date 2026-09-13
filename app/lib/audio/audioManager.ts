@@ -13,7 +13,7 @@ export type RitualAudioName = keyof typeof RITUAL_AUDIO;
 
 export class AudioManager {
   private audio = new Map<RitualAudioName, HTMLAudioElement>();
-  private fadeTimers = new Set<number>();
+  private fadeRafs = new Map<RitualAudioName, number>();
 
   load(name: RitualAudioName): HTMLAudioElement {
     const existing = this.audio.get(name);
@@ -27,6 +27,7 @@ export class AudioManager {
 
   async play(name: RitualAudioName, volume = 1, loop = false) {
     const element = this.load(name);
+    this.cancelFade(name);
     element.loop = loop;
     element.volume = clampVolume(volume);
     element.currentTime = 0;
@@ -34,17 +35,17 @@ export class AudioManager {
     try {
       await element.play();
     } catch {
-      // Browsers can reject playback until a user gesture occurs.
+      // Playback may be blocked until a user gesture occurs.
     }
 
     return element;
   }
 
-  async playOnce(name: RitualAudioName, volume = 1) {
+  playOnce(name: RitualAudioName, volume = 1) {
     return this.play(name, volume, false);
   }
 
-  async playLoop(name: RitualAudioName, volume = 1) {
+  playLoop(name: RitualAudioName, volume = 1) {
     return this.play(name, volume, true);
   }
 
@@ -68,18 +69,15 @@ export class AudioManager {
       element.volume = startVolume + (target - startVolume) * progress;
 
       if (progress >= 1) {
-        this.fadeTimers.delete(timerId);
+        this.fadeRafs.delete(name);
         onDone?.();
         return;
       }
 
-      requestAnimationFrame(tick);
+      this.fadeRafs.set(name, requestAnimationFrame(tick));
     };
 
-    const timerId = window.setTimeout(() => undefined, 0);
-    this.fadeTimers.add(timerId);
-    window.clearTimeout(timerId);
-    requestAnimationFrame(tick);
+    this.fadeRafs.set(name, requestAnimationFrame(tick));
   }
 
   stop(name: RitualAudioName, fadeDuration = 0) {
@@ -94,6 +92,7 @@ export class AudioManager {
       return;
     }
 
+    this.cancelFade(name);
     element.pause();
     element.currentTime = 0;
   }
@@ -107,22 +106,22 @@ export class AudioManager {
     return this.audio.get(name) ?? null;
   }
 
-  cancelFade(_name: RitualAudioName) {
-    // Fade callbacks are short-lived and are harmless after a state transition.
-    // Full manager cleanup below cancels tracked handles.
-  }
-
-  stopAll() {
-    for (const element of this.audio.values()) {
-      element.pause();
-      element.currentTime = 0;
+  cancelFade(name: RitualAudioName) {
+    const raf = this.fadeRafs.get(name);
+    if (raf !== undefined) {
+      cancelAnimationFrame(raf);
+      this.fadeRafs.delete(name);
     }
   }
 
+  stopAll() {
+    for (const name of this.audio.keys()) this.stop(name);
+  }
+
   destroy() {
+    for (const name of this.audio.keys()) this.cancelFade(name);
     this.stopAll();
     this.audio.clear();
-    this.fadeTimers.clear();
   }
 }
 
