@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef } from "react";
 
 export function useTrackedTimers() {
-  const timeouts = useRef(new Set<number>());
-  const intervals = useRef(new Set<number>());
+  const timeouts = useRef(new Set<ReturnType<typeof window.setTimeout>>());
+  const intervals = useRef(new Set<ReturnType<typeof window.setInterval>>());
 
-  const setTrackedTimeout = useCallback((callback: () => void, delay: number) => {
+  const timeout = useCallback((callback: () => void, delay: number) => {
     const id = window.setTimeout(() => {
       timeouts.current.delete(id);
       callback();
@@ -15,20 +15,20 @@ export function useTrackedTimers() {
     return id;
   }, []);
 
-  const setTrackedInterval = useCallback((callback: () => void, delay: number) => {
+  const interval = useCallback((callback: () => void, delay: number) => {
     const id = window.setInterval(callback, delay);
     intervals.current.add(id);
     return id;
   }, []);
 
-  const clearTrackedInterval = useCallback((id: number) => {
-    window.clearInterval(id);
-    intervals.current.delete(id);
-  }, []);
-
-  const clearTrackedTimeout = useCallback((id: number) => {
+  const clearTimeoutTracked = useCallback((id: ReturnType<typeof window.setTimeout>) => {
     window.clearTimeout(id);
     timeouts.current.delete(id);
+  }, []);
+
+  const clearIntervalTracked = useCallback((id: ReturnType<typeof window.setInterval>) => {
+    window.clearInterval(id);
+    intervals.current.delete(id);
   }, []);
 
   const clearAll = useCallback(() => {
@@ -41,10 +41,10 @@ export function useTrackedTimers() {
   useEffect(() => clearAll, [clearAll]);
 
   return {
-    setTrackedTimeout,
-    setTrackedInterval,
-    clearTrackedTimeout,
-    clearTrackedInterval,
+    timeout,
+    interval,
+    clearTimeout: clearTimeoutTracked,
+    clearInterval: clearIntervalTracked,
     clearAll,
   };
 }
