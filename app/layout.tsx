@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import './globals.css';           // ✅ Correct
+import './globals.css';
+import './styles/ritual.css';
 
 import ClientLayout from '@/app/components/ClientLayout';
 
