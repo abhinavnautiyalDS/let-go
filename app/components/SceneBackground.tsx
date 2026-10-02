@@ -1,24 +1,30 @@
-import { useState, useEffect } from 'react';
+"export default function SceneBackground() {
+  const assetBase = "/assets/scene-01";
 
-export function useMobileDetection() {
-  const [isMobile, setIsMobile] = useState(false);
-  const [isLandscape, setIsLandscape] = useState(false);
+  const layers = [
+    "BACKGROUND.png",
+    "WINDOW.png",
+    "TABLE.png",
+    "CUP.png",
+    "LAMP.png",
+  ];
 
-  useEffect(() => {
-    const check = () => {
-      const mobile = window.innerWidth < 768;
-      const landscape = window.innerWidth > window.innerHeight;
-      setIsMobile(mobile);
-      setIsLandscape(landscape);
-    };
-    check();
-    window.addEventListener('resize', check);
-    window.addEventListener('orientationchange', check);
-    return () => {
-      window.removeEventListener('resize', check);
-      window.removeEventListener('orientationchange', check);
-    };
-  }, []);
-
-  return { isMobile, isLandscape };
+  return (
+    <div className="scene-background-container" aria-hidden="true">
+      <div className="scene-camera">
+        {layers.map((layer) => (
+          <img
+            key={layer}
+            className="layer"
+            src={`${assetBase}/${layer}`}
+            alt=""
+            draggable={false}
+          />
+        ))}
+        <div className="lamp-glow" />
+        <div className="rain" />
+        <div className="film-grain" />
+      </div>
+    </div>
+  );
 }
