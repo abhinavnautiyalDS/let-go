@@ -1,4 +1,4 @@
-"export default function SceneBackground() {
+export default function SceneBackground() {
   const assetBase = "/assets/scene-01";
 
   const layers = [
